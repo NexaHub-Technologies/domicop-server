@@ -19,6 +19,7 @@ export type LoanStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 
 export type DividendStatus = 'pending' | 'processing' | 'success' | 'failed'
 export type MessageStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
 export type NotificationType = 'payment' | 'loan' | 'announcement' | 'message' | 'general'
+export type PaymentAttemptStatus = 'initiated' | 'success' | 'cancelled' | 'failed' | 'retry'
 
 export interface Profile {
   id: string
@@ -149,6 +150,16 @@ export interface AuditLog {
   created_at: string
 }
 
+export interface PaymentAttempt {
+  id: string
+  member_id: string
+  paystack_ref: string
+  status: PaymentAttemptStatus
+  error_message: string | null
+  metadata: Json
+  created_at: string
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -201,6 +212,11 @@ export interface Database {
         Row: AuditLog
         Insert: Omit<AuditLog, 'id' | 'created_at'> & { id?: string; created_at?: string }
         Update: Partial<AuditLog>
+      }
+      payment_attempts: {
+        Row: PaymentAttempt
+        Insert: Omit<PaymentAttempt, 'id' | 'created_at'> & { id?: string; created_at?: string }
+        Update: Partial<PaymentAttempt>
       }
     }
     Views: {
