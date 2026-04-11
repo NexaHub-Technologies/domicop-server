@@ -34,7 +34,8 @@ export interface Profile {
   status: ProfileStatus
   onboarding_step: number
   onboarding_done: boolean
-  fcm_token: string | null
+  expo_push_token: string | null
+  push_notifications_enabled: boolean | null
   avatar_url: string | null
   member_no: string | null
   preferences: Json

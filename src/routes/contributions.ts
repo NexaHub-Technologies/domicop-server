@@ -1,6 +1,7 @@
 import Elysia, { t }    from 'elysia'
 import { authenticate } from '../middleware/authenticate'
 import { requireAdmin } from '../middleware/requireAdmin'
+import { requireActive } from '../middleware/requireActive'
 import { supabase }     from '../lib/supabase'
 import { writeAuditLog } from '../utils/audit'
 import { paginationQS, paginate } from '../utils/validators'
@@ -22,6 +23,8 @@ export const contributionRoutes = new Elysia({ prefix: '/contributions' })
   )
 
   // transactions/add-contribution.tsx → POST /contributions
+  // Requires active account status (pending users cannot contribute)
+  .use(requireActive)
   .post('/',
     async ({ userId, body }) => {
       // Prevent duplicate contribution for the same month

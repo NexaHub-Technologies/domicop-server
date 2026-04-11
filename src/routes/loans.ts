@@ -1,6 +1,7 @@
 import Elysia, { t }    from 'elysia'
 import { authenticate } from '../middleware/authenticate'
 import { requireAdmin } from '../middleware/requireAdmin'
+import { requireActive } from '../middleware/requireActive'
 import { supabase }     from '../lib/supabase'
 import { writeAuditLog } from '../utils/audit'
 import { paginationQS, paginate } from '../utils/validators'
@@ -17,6 +18,8 @@ export const loanRoutes = new Elysia({ prefix: '/loans' })
   })
 
   // transactions/apply-for-loan.tsx → POST /loans/apply
+  // Requires active account status (pending users cannot apply for loans)
+  .use(requireActive)
   .post('/apply',
     async ({ userId, body }) => {
       const { count } = await supabase.from('contributions').select('*', { count: 'exact', head: true })

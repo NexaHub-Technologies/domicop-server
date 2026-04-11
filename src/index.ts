@@ -13,6 +13,7 @@ import { loanRoutes } from "./routes/loans";
 import { dividendRoutes } from "./routes/dividends";
 import { messageRoutes } from "./routes/messages";
 import { notificationRoutes } from "./routes/notifications";
+import { websocketRoutes } from "./routes/websocket";
 import { announcementRoutes } from "./routes/announcements";
 import { reportRoutes } from "./routes/reports";
 
@@ -27,6 +28,15 @@ const app = new Elysia()
   )
   .use(logger({ level: "info" }))
   .use(swagger({ documentation: { info: { title: "DOMICOP API", version: "2.0.0" } } }))
+
+  // Root route - API info
+  .get("/", () => ({
+    name: "DOMICOP API",
+    version: "2.0.0",
+    status: "running",
+    documentation: "/swagger",
+    health: "/health",
+  }))
 
   .get("/health", () => ({
     status: "ok",
@@ -49,6 +59,7 @@ const app = new Elysia()
   .use(dividendRoutes)
   .use(messageRoutes)
   .use(notificationRoutes)
+  .use(websocketRoutes)
   .use(announcementRoutes)
   .use(reportRoutes)
 

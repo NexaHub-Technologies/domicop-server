@@ -2,7 +2,9 @@ import Elysia, { t } from "elysia";
 import { authenticate } from "../middleware/authenticate";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { supabase } from "../lib/supabase";
-import { fcm } from "../lib/fcm";
+import { NotificationService } from "../services/notificationService";
+
+const notificationService = NotificationService.getInstance();
 
 export const messageRoutes = new Elysia({ prefix: "/messages" })
   .use(authenticate)
@@ -68,36 +70,31 @@ export const messageRoutes = new Elysia({ prefix: "/messages" })
         })
         .eq("id", params.id);
 
-      // FCM notify the other party
+      // Notify the other party via Expo Push
       const { data: thread } = await supabase
         .from("messages")
         .select("member_id")
         .eq("id", params.id)
         .single();
       if (thread && role === "admin") {
-        const { data: mp } = await supabase
-          .from("profiles")
-          .select("fcm_token")
-          .eq("id", thread.member_id)
-          .single();
-        if (mp?.fcm_token) {
-          await fcm.sendToDevice({
-            token: mp.fcm_token,
+        // Send push notification via Expo
+        await notificationService.sendPushNotifications(
+          [thread.member_id],
+          {
             title: "New reply from admin",
             body: body.body.slice(0, 80),
-            data: { screen: "support", message_id: params.id },
-          });
-          // Also persist notification to inbox
-          await supabase
-            .from("notifications")
-            .insert({
-              member_id: thread.member_id,
-              title: "New reply from admin",
-              body: body.body.slice(0, 80),
-              type: "message",
-              data: { message_id: params.id },
-            });
-        }
+            data: { type: "message", message_id: params.id },
+          }
+        );
+
+        // Also persist notification to inbox
+        await supabase.from("notifications").insert({
+          member_id: thread.member_id,
+          title: "New reply from admin",
+          body: body.body.slice(0, 80),
+          type: "message",
+          data: { message_id: params.id },
+        });
       }
       return data;
     },

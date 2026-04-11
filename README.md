@@ -17,6 +17,7 @@ A high-performance backend API server built with [Elysia](https://elysiajs.com) 
 - [Installation](#installation)
 - [Environment Variables](#environment-variables)
 - [Database Setup](#database-setup)
+- [Email Configuration](#email-configuration)
 - [Running the Server](#running-the-server)
 - [API Documentation](#api-documentation)
 - [Project Structure](#project-structure)
@@ -35,17 +36,19 @@ A high-performance backend API server built with [Elysia](https://elysiajs.com) 
   - Loan applications and repayment scheduling
   - Dividend distribution via Paystack Transfer
 - **Payment Processing**: Paystack integration for secure payments
-- **Communication**: FCM push notifications, in-app messaging, announcements
+- **Communication**: Expo push notifications, in-app messaging, announcements
 - **Admin Dashboard**: Member approval, contribution verification, loan processing, financial reports
 
 ### Key Features
 - ✅ **Two-layer security**: Elysia middleware + Supabase RLS policies
+- ✅ **Email authentication**: Secure email/password auth with verification
 - ✅ **Paystack webhook HMAC-SHA512 signature verification**
 - ✅ **Server-gated onboarding**: Tracks and enforces 3-step onboarding completion
 - ✅ **Type-safe**: Full TypeScript with strict mode
 - ✅ **Rate limiting**: Per-endpoint rate limiting for auth, payments, and general routes
 - ✅ **Audit logging**: Complete audit trail for admin actions
-- ✅ **FCM Push Notifications**: Real-time notifications to mobile devices
+- ✅ **Expo Push Notifications**: Real-time notifications to mobile devices
+- ✅ **Account status enforcement**: Pending users blocked from financial operations
 
 ## Tech Stack
 
@@ -57,7 +60,7 @@ A high-performance backend API server built with [Elysia](https://elysiajs.com) 
 | **Database** | [Supabase](https://supabase.com) (PostgreSQL) |
 | **Auth** | Supabase Auth |
 | **Payments** | [Paystack](https://paystack.com) |
-| **Push Notifications** | Firebase Cloud Messaging (FCM) |
+| **Push Notifications** | Expo Push Notifications |
 | **API Docs** | Swagger/OpenAPI (via @elysiajs/swagger) |
 
 ## Prerequisites
@@ -65,7 +68,7 @@ A high-performance backend API server built with [Elysia](https://elysiajs.com) 
 - [Bun](https://bun.sh) v1.3.10 or higher
 - [Supabase](https://supabase.com) project
 - [Paystack](https://paystack.com) business account
-- [Firebase](https://firebase.google.com) project (for FCM)
+- [Expo](https://expo.dev) account (for push notifications)
 
 ## Installation
 
@@ -101,10 +104,8 @@ PAYSTACK_SECRET_KEY=sk_test_xxxx
 PAYSTACK_PUBLIC_KEY=pk_test_xxxx
 PAYSTACK_WEBHOOK_SECRET=your-webhook-secret
 
-# Firebase (FCM)
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project.iam.gserviceaccount.com
-FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
+# Expo Push Notifications
+EXPO_ACCESS_TOKEN=your-expo-access-token
 
 # App
 PORT=3000
@@ -118,14 +119,32 @@ CLIENT_ADMIN_ORIGIN=https://admin.domicop.com
 
 - **Supabase**: Get from Project Settings → API in your Supabase dashboard
 - **Paystack**: Get from Settings → API Keys & Webhooks in your Paystack dashboard
-- **Firebase**: 
-  1. Go to Project Settings → Service Accounts
-  2. Click "Generate new private key"
-  3. Extract `project_id`, `client_email`, and `private_key` from the JSON file
+- **Expo**: 
+  1. Go to https://expo.dev/accounts/[username]/settings/access-tokens
+  2. Click "Create Token"
+  3. Copy the generated token
 
 ## Database Setup
 
-Run all SQL migrations in your Supabase SQL Editor in the order listed below:
+We now use Supabase migrations for database management. The schema includes all tables, RLS policies, triggers, and indexes.
+
+### Option 1: Using Supabase CLI (Recommended)
+
+```bash
+# Link your project
+supabase link --project-ref <your-project-ref>
+
+# Push migrations
+supabase db push
+```
+
+### Option 2: Using Supabase SQL Editor
+
+If you prefer manual setup, run the migration files in order:
+1. `supabase/migrations/20240601_initial_schema.sql` - Creates all tables
+2. `supabase/migrations/20240615_oauth_and_rls_setup.sql` - OAuth triggers and RLS policies
+
+Or run individual SQL statements:
 
 ### 1. Profiles Table (extends Supabase auth.users)
 ```sql
@@ -142,7 +161,8 @@ create table public.profiles (
   status          text not null default 'pending' check (status in ('pending', 'active', 'suspended')),
   onboarding_step int  not null default 0,
   onboarding_done boolean not null default false,
-  fcm_token       text,
+  expo_push_token text,
+  push_notifications_enabled boolean default true,
   avatar_url      text,
   member_no       text unique,
   preferences     jsonb not null default '{
@@ -379,6 +399,50 @@ $$ language plpgsql stable security definer;
 
 Register this under **Supabase Dashboard → Authentication → Hooks → Custom Access Token**.
 
+## Email Configuration
+
+### Enable Email Provider
+
+1. Go to **Supabase Dashboard → Authentication → Providers**
+2. Ensure **Email** provider is enabled
+3. Configure email confirmation:
+   - **Confirm email**: Enable (recommended for production)
+   - **Secure email change**: Enable
+   - **Secure password change**: Enable
+
+### Email Templates
+
+Supabase provides default email templates. To customize:
+
+1. Go to **Authentication → Email Templates**
+2. Customize templates for:
+   - Confirmation email
+   - Invitation email
+   - Magic Link email
+   - Email change confirmation
+   - Password reset email
+
+### SMTP Configuration (Recommended for Production)
+
+For production, configure a custom SMTP provider:
+
+1. Go to **Settings → Auth → Email**
+2. Enable "Use custom SMTP server"
+3. Enter your SMTP credentials (SendGrid, AWS SES, etc.)
+
+Example with SendGrid:
+- **Host**: `smtp.sendgrid.net`
+- **Port**: `587`
+- **Username**: `apikey`
+- **Password**: Your SendGrid API key
+
+### Environment Variable
+
+Add to your `.env`:
+```env
+REQUIRE_EMAIL_VERIFICATION=true
+```
+
 ## Running the Server
 
 ### Development Mode (with hot reload)
@@ -416,13 +480,15 @@ Once the server is running, visit:
 ### API Endpoints Overview
 
 #### Authentication (`/auth`)
-- `POST /auth/login` - Member login
+- `POST /auth/register` - Create new account with email/password
+- `POST /auth/login` - Member login with email/password
 - `POST /auth/refresh` - Refresh access token
 - `POST /auth/logout` - Logout
 - `POST /auth/reset-password` - Request password reset
-- `POST /auth/confirm-reset` - Confirm password reset
-- `POST /auth/change-password` - Change password (authenticated)
-- `POST /auth/fcm-token` - Store FCM token
+- `POST /auth/confirm-reset` - Confirm password reset with new password
+- `POST /auth/resend-verification` - Resend verification email
+- `POST /auth/change-password` - Change password (authenticated, requires current password)
+- `POST /auth/expo-token` - Store Expo push notification token
 
 #### Members (`/members`)
 - `POST /members/register` - Register new member
@@ -482,8 +548,7 @@ domicop-server/
 │   ├── index.ts                 # Application entry point
 │   ├── lib/
 │   │   ├── supabase.ts          # Supabase clients
-│   │   ├── paystack.ts          # Paystack API integration
-│   │   └── fcm.ts               # Firebase Cloud Messaging
+│   │   └── paystack.ts          # Paystack API integration
 │   ├── middleware/
 │   │   ├── authenticate.ts      # JWT authentication
 │   │   ├── requireAdmin.ts      # Admin authorization
