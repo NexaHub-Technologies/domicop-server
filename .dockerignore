@@ -1,0 +1,45 @@
+# Dependencies
+node_modules
+.npm
+
+# Build outputs
+out
+dist
+*.tgz
+
+# Environment files
+.env
+.env.*
+
+# Logs
+logs
+*.log
+
+# Cache
+.cache
+.eslintcache
+*.tsbuildinfo
+
+# IDE
+.idea
+.vscode
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+
+# Testing
+coverage
+*.lcov
+
+# Agent files
+.agents
+skills-lock.json
+CLAUDE.md
