@@ -4,7 +4,6 @@ export interface AuthenticatedContext {
   user: User
   role: string
   userId: string
-  onboardingDone: boolean
   token: string
 }
 

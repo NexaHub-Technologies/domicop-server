@@ -4,7 +4,6 @@ import { swagger } from "@elysiajs/swagger";
 import { logger } from "@bogeychan/elysia-logger";
 import { authRoutes } from "./routes/auth";
 import { memberRoutes } from "./routes/members";
-import { onboardingRoutes } from "./routes/onboarding";
 import { dashboardRoutes } from "./routes/dashboard";
 import { savingsRoutes } from "./routes/savings";
 import { contributionRoutes } from "./routes/contributions";
@@ -50,7 +49,6 @@ const app = new Elysia()
   // All application routes
   .use(authRoutes)
   .use(memberRoutes)
-  .use(onboardingRoutes)
   .use(dashboardRoutes)
   .use(savingsRoutes)
   .use(contributionRoutes)

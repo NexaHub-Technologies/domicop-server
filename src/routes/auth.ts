@@ -45,7 +45,6 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
    * @returns {string} 200.user.id - User UUID
    * @returns {string} 200.user.email - User email
    * @returns {string} 200.user.role - User role ('admin' | 'member')
-   * @returns {boolean} 200.user.onboarding_done - Whether user completed onboarding
    * @returns {boolean} 200.user.email_verified - Whether email is verified
    * @returns {Error} 401 - Invalid credentials
    * @returns {Error} 403 - Email not verified (if REQUIRE_EMAIL_VERIFICATION=true)
@@ -68,7 +67,6 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
    *     "id": "uuid",
    *     "email": "user@example.com",
    *     "role": "member",
-   *     "onboarding_done": false,
    *     "email_verified": true
    *   }
    * }
@@ -87,9 +85,14 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
       }
 
       // Check if email is verified (if required by Supabase settings)
-      if (!data.user!.email_confirmed_at && process.env.REQUIRE_EMAIL_VERIFICATION === "true") {
+      if (
+        !data.user!.email_confirmed_at &&
+        process.env.REQUIRE_EMAIL_VERIFICATION === "true"
+      ) {
         set.status = 403;
-        throw new Error("Please verify your email before logging in. Check your inbox for the verification link.");
+        throw new Error(
+          "Please verify your email before logging in. Check your inbox for the verification link.",
+        );
       }
 
       return {
@@ -100,7 +103,6 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
           id: data.user!.id,
           email: data.user!.email,
           role: data.user!.app_metadata?.user_role ?? "member",
-          onboarding_done: data.user!.app_metadata?.onboarding_done ?? false,
           email_verified: !!data.user!.email_confirmed_at,
         },
       };
@@ -116,8 +118,8 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
   /**
    * Register new account
    *
-   * Creates a new user account with email and password.
-   * Automatically creates a profile entry via database trigger.
+   * Creates a new user account with email, password, and complete profile information.
+   * All profile fields are collected in a single registration call.
    * Sends verification email if email confirmation is enabled.
    *
    * @route POST /auth/register
@@ -126,6 +128,13 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
    * @param {string} body.email - User's email address
    * @param {string} body.password - User's password (min 8 characters)
    * @param {string} body.full_name - User's full name (min 2 characters)
+   * @param {string} body.phone - User's phone number
+   * @param {string} body.address - User's physical address
+   * @param {string} body.bank_name - Name of the user's bank
+   * @param {string} body.bank_account - User's bank account number
+   * @param {string} body.bank_code - Bank identification code
+   * @param {string} [body.avatar_url] - Optional URL to user's profile photo
+   * @param {string} [body.next_of_kin] - Optional next of kin contact information
    * @returns {Object} 200 - Success response
    * @returns {string} 200.message - Success message
    * @returns {string} 200.user_id - Created user UUID
@@ -139,7 +148,14 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
    * {
    *   "email": "newuser@example.com",
    *   "password": "password123",
-   *   "full_name": "John Doe"
+   *   "full_name": "John Doe",
+   *   "phone": "+1234567890",
+   *   "address": "123 Main Street, City",
+   *   "bank_name": "First National Bank",
+   *   "bank_account": "1234567890",
+   *   "bank_code": "FNB001",
+   *   "avatar_url": "https://example.com/avatars/user.jpg",
+   *   "next_of_kin": "Jane Doe - +0987654321"
    * }
    *
    * // Success Response
@@ -159,6 +175,13 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         options: {
           data: {
             full_name: body.full_name,
+            phone: body.phone,
+            address: body.address,
+            bank_name: body.bank_name,
+            bank_account: body.bank_account,
+            bank_code: body.bank_code,
+            avatar_url: body.avatar_url,
+            next_of_kin: body.next_of_kin,
           },
         },
       });
@@ -168,10 +191,11 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         throw new Error(error.message);
       }
 
-      // Profile will be auto-created by database trigger
+      // Profile will be auto-created by database trigger with all fields
 
       return {
-        message: "Registration successful. Please check your email to verify your account.",
+        message:
+          "Registration successful. Please check your email to verify your account.",
         user_id: data.user!.id,
         email: data.user!.email,
       };
@@ -181,6 +205,13 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         email: t.String({ format: "email" }),
         password: t.String({ minLength: 8 }),
         full_name: t.String({ minLength: 2 }),
+        phone: t.String(),
+        address: t.String(),
+        bank_name: t.String(),
+        bank_account: t.String(),
+        bank_code: t.String(),
+        avatar_url: t.Optional(t.String()),
+        next_of_kin: t.Optional(t.String()),
       }),
     },
   )
