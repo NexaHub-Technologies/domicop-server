@@ -7,42 +7,6 @@ import { paginationQS, paginate } from "../utils/validators";
 
 export const memberRoutes = new Elysia({ prefix: "/members" })
 
-  // sign-up.tsx → POST /members/register (public)
-  .post(
-    "/register",
-    async ({ body }) => {
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: body.email,
-        password: body.password,
-        user_metadata: { full_name: body.full_name, role: "member" },
-      });
-      if (authError) throw new Error(authError.message);
-      await supabase
-        .from("profiles")
-        .update({
-          phone: body.phone,
-          address: body.address,
-          next_of_kin: body.next_of_kin ?? null,
-          status: "pending",
-        })
-        .eq("id", authData.user!.id);
-      return {
-        message: "Registration submitted. Proceed to onboarding.",
-        id: authData.user!.id,
-      };
-    },
-    {
-      body: t.Object({
-        email: t.String({ format: "email" }),
-        password: t.String({ minLength: 8 }),
-        full_name: t.String({ minLength: 2 }),
-        phone: t.String(),
-        address: t.String(),
-        next_of_kin: t.Optional(t.String()),
-      }),
-    },
-  )
-
   .use(authenticate)
 
   // profile.tsx → GET /members/me
@@ -102,6 +66,42 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
 
   // Admin routes
   .use(requireAdmin)
+
+  // sign-up.tsx → POST /members/register (public)
+  .post(
+    "/register",
+    async ({ body }) => {
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: body.email,
+        password: body.password,
+        user_metadata: { full_name: body.full_name, role: "member" },
+      });
+      if (authError) throw new Error(authError.message);
+      await supabase
+        .from("profiles")
+        .update({
+          phone: body.phone,
+          address: body.address,
+          next_of_kin: body.next_of_kin ?? null,
+          status: "pending",
+        })
+        .eq("id", authData.user!.id);
+      return {
+        message: "Registration submitted. Proceed to onboarding.",
+        id: authData.user!.id,
+      };
+    },
+    {
+      body: t.Object({
+        email: t.String({ format: "email" }),
+        password: t.String({ minLength: 8 }),
+        full_name: t.String({ minLength: 2 }),
+        phone: t.String(),
+        address: t.String(),
+        next_of_kin: t.Optional(t.String()),
+      }),
+    },
+  )
 
   .get(
     "/",
