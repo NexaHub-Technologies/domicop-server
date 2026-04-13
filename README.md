@@ -497,21 +497,11 @@ Once the server is running, visit:
 - `GET /members/me/security` - Get security info
 - `PATCH /members/me/preferences` - Update preferences
 
-#### Onboarding (`/onboarding`)
-- `GET /onboarding/status` - Get onboarding status
-- `PATCH /onboarding/step-1` - Personal info
-- `PATCH /onboarding/step-2` - Bank details
-- `PATCH /onboarding/step-3` - Complete onboarding
-
 #### Dashboard (`/dashboard`)
 - `GET /dashboard/summary` - Dashboard summary data
 
-#### Savings (`/savings`)
-- `GET /savings/me` - Get savings balance & transactions
-- `GET /savings/:id` - Get transaction details
-
 #### Contributions (`/contributions`)
-- `GET /contributions/me` - List member contributions
+- `GET /contributions/me` - List member contributions with balance summary & transactions
 - `POST /contributions` - Add new contribution
 - `GET /contributions/:id` - Get contribution details
 

@@ -5,7 +5,6 @@ import { logger } from "@bogeychan/elysia-logger";
 import { authRoutes } from "./routes/auth";
 import { memberRoutes } from "./routes/members";
 import { dashboardRoutes } from "./routes/dashboard";
-import { savingsRoutes } from "./routes/savings";
 import { contributionRoutes } from "./routes/contributions";
 import { paymentRoutes, webhookHandler } from "./routes/payments";
 import { loanRoutes } from "./routes/loans";
@@ -50,7 +49,6 @@ const app = new Elysia()
   .use(authRoutes)
   .use(memberRoutes)
   .use(dashboardRoutes)
-  .use(savingsRoutes)
   .use(contributionRoutes)
   .use(paymentRoutes)
   .use(loanRoutes)
