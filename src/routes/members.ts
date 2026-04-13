@@ -50,7 +50,7 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
     const { data, error } = await supabase
       .from("profiles")
       .select(
-        "id, full_name, phone, address, bank_name, bank_account, next_of_kin, role, status, member_no, avatar_url, onboarding_step, onboarding_done, preferences, created_at",
+        "id, full_name, phone, address, bank_name, bank_account, next_of_kin, role, status, member_no, avatar_url, preferences, created_at",
       )
       .eq("id", userId)
       .single();
