@@ -1,4 +1,7 @@
 import { supabase } from '../lib/supabase'
+import type { Database } from '../types/database'
+
+type Json = Database['public']['Tables']['audit_log']['Row']['metadata']
 
 export async function writeAuditLog(payload: {
   actor_id:   string
@@ -12,6 +15,6 @@ export async function writeAuditLog(payload: {
     action:    payload.action,
     entity:    payload.entity,
     entity_id: payload.entity_id ?? null,
-    metadata:  payload.metadata  ?? {},
+    metadata:  (payload.metadata ?? {}) as Json,
   })
 }

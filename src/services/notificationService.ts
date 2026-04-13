@@ -31,6 +31,9 @@
 import { Expo, ExpoPushMessage, ExpoPushTicket } from "expo-server-sdk";
 import { Elysia } from "elysia";
 import { supabase } from "../lib/supabase";
+import type { Database } from "../types/database";
+
+type Json = Database["public"]["Tables"]["notification_logs"]["Row"]["data"];
 
 /**
  * Notification payload structure
@@ -360,7 +363,7 @@ export class NotificationService {
       channel,
       title: payload.title,
       body: payload.body,
-      data: payload.data || {},
+      data: (payload.data || {}) as Json,
       status: ticket.status === "ok" ? "sent" : "failed",
       error_message:
         ticket.status === "error" ? ticket.message : null,

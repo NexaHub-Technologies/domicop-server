@@ -395,8 +395,9 @@ export const paymentRoutes = new Elysia({ prefix: '/payments' })
 export const webhookHandler = new Elysia()
   .use(validateWebhook)
   .post('/payments/webhook',
-    async ({ webhookPayload }) => {
-      const { event, data } = webhookPayload
+    async ({ body }) => {
+      const payload = body as { event: string; data: any }
+      const { event, data } = payload
 
       if (event === 'charge.success') {
         const { reference, amount, channel, metadata } = data

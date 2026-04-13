@@ -8,7 +8,7 @@ import { supabase } from "../lib/supabase";
  */
 export const requireActive = new Elysia({ name: "requireActive" }).derive(
   { as: "scoped" },
-  async ({ userId, set }) => {
+  async ({ userId, set }: any) => {
     const { data: profile, error } = await supabase
       .from("profiles")
       .select("status, role")

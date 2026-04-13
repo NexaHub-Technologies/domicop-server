@@ -3,6 +3,7 @@ import type { Database } from '../types/database'
 
 type Transaction = Database['public']['Tables']['transactions']['Row']
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert']
+type Json = Database['public']['Tables']['transactions']['Row']['metadata']
 
 export interface PaystackVerifyResponse {
   status: string
@@ -151,7 +152,7 @@ export async function processSuccessfulPayment(
         ...metadata,
         paystack_response: verified,
         verified_at: new Date().toISOString(),
-      },
+      } as Json,
     })
     .eq('paystack_ref', reference)
     .eq('member_id', memberId)
@@ -233,7 +234,7 @@ export async function processFailedPayment(
       metadata: {
         failed_at: new Date().toISOString(),
         error: errorData,
-      },
+      } as Json,
     })
     .eq('paystack_ref', reference)
     .eq('member_id', memberId)
@@ -266,6 +267,6 @@ export async function recordPaymentAttempt(params: {
     paystack_ref: params.reference,
     status: params.status,
     error_message: params.errorMessage || null,
-    metadata: params.metadata || {},
+    metadata: (params.metadata || {}) as Json,
   })
 }

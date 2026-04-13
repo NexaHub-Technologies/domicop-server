@@ -13,6 +13,7 @@
 
 import { Elysia, t } from "elysia";
 import { supabaseAuth } from "../lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 /**
  * WebSocket message types
@@ -60,7 +61,7 @@ export const websocketRoutes = new Elysia().ws("/ws/notifications", {
    * Subscribes client to appropriate channels based on role
    */
   open(ws) {
-    const user = ws.data.user;
+    const user = (ws.data as unknown as { user: User }).user;
     const role = user.app_metadata?.user_role || "member";
 
     console.log(`[WebSocket] Connected: ${user.email} (${role})`);
@@ -124,7 +125,7 @@ export const websocketRoutes = new Elysia().ws("/ws/notifications", {
    * Cleanup subscriptions
    */
   close(ws) {
-    const user = ws.data.user;
+    const user = (ws.data as unknown as { user: User }).user;
     console.log(`[WebSocket] Disconnected: ${user.email}`);
 
     // Unsubscribe is automatic when connection closes

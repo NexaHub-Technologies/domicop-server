@@ -100,6 +100,17 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
     };
   })
 
+  // GET /members/me/preferences — retrieve current preferences
+  .get("/me/preferences", async ({ userId }) => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("preferences")
+      .eq("id", userId)
+      .single();
+    if (error) throw new Error(error.message);
+    return data?.preferences ?? {};
+  })
+
   // theme-preference.tsx + notification-preferences.tsx → PATCH /members/me/preferences
   .patch(
     "/me/preferences",
@@ -111,7 +122,7 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
         .eq("id", userId)
         .single();
 
-      const merged = { ...(current?.preferences ?? {}), ...body };
+      const merged = { ...((current?.preferences as Record<string, unknown>) ?? {}), ...body };
 
       const { data, error } = await supabase
         .from("profiles")
