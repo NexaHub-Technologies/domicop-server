@@ -100,57 +100,6 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
     };
   })
 
-  // GET /members/me/preferences — retrieve current preferences
-  .get("/me/preferences", async ({ userId }) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("preferences")
-      .eq("id", userId)
-      .single();
-    if (error) throw new Error(error.message);
-    return data?.preferences ?? {};
-  })
-
-  // theme-preference.tsx + notification-preferences.tsx → PATCH /members/me/preferences
-  .patch(
-    "/me/preferences",
-    async ({ userId, body }) => {
-      // Deep merge preferences JSONB — preserve existing keys not in body
-      const { data: current } = await supabase
-        .from("profiles")
-        .select("preferences")
-        .eq("id", userId)
-        .single();
-
-      const merged = { ...((current?.preferences as Record<string, unknown>) ?? {}), ...body };
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({ preferences: merged, updated_at: new Date().toISOString() })
-        .eq("id", userId)
-        .select("preferences")
-        .single();
-      if (error) throw new Error(error.message);
-      return data;
-    },
-    {
-      body: t.Partial(
-        t.Object({
-          theme: t.Union([t.Literal("light"), t.Literal("dark"), t.Literal("system")]),
-          notifications_enabled: t.Boolean(),
-          notification_types: t.Partial(
-            t.Object({
-              payments: t.Boolean(),
-              loans: t.Boolean(),
-              announcements: t.Boolean(),
-              messages: t.Boolean(),
-            }),
-          ),
-        }),
-      ),
-    },
-  )
-
   // Admin routes
   .use(requireAdmin)
 
