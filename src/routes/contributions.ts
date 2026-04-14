@@ -1,7 +1,6 @@
 import Elysia, { t } from "elysia";
 import { authenticate } from "../middleware/authenticate";
 import { requireAdmin } from "../middleware/requireAdmin";
-import { requireActive } from "../middleware/requireActive";
 import { supabase } from "../lib/supabase";
 import { writeAuditLog } from "../utils/audit";
 import { paginationQS, paginate } from "../utils/validators";
@@ -91,38 +90,23 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
   )
 
   // transactions/add-contribution.tsx → POST /contributions
-  // Requires active account status (pending users cannot contribute)
-  .use(requireActive)
+  // Allow pending users to create contributions
   .post(
     "/",
     async ({ userId, body }) => {
-      // Prevent duplicate contribution for the same month
-      const { data: existing } = await supabase
-        .from("contributions")
-        .select("id, payment_status")
-        .eq("member_id", userId)
-        .eq("month", body.month)
-        .maybeSingle();
-
-      if (
-        existing &&
-        existing.payment_status !== "failed" &&
-        existing.payment_status !== "abandoned"
-      ) {
-        throw new Error(
-          `A contribution for ${body.month} already exists with status: ${existing.payment_status}`,
-        );
-      }
-
       const { data, error } = await supabase
         .from("contributions")
         .insert({
           member_id: userId,
           amount: body.amount,
+          year: body.year,
           month: body.month,
-          year: parseInt(body.month.split("-")[0]),
+          transaction_ref: body.transaction_ref ?? null,
+          member_no: body.member_no ?? null,
+          member_email: body.member_email ?? null,
+          payment_method: body.payment_method ?? null,
+          payment_status: body.payment_status ?? "pending",
           notes: body.notes ?? null,
-          payment_status: "pending",
         })
         .select()
         .single();
@@ -132,7 +116,13 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
     {
       body: t.Object({
         amount: t.Number({ minimum: 1 }),
+        year: t.Number(),
         month: t.String({ pattern: "^[0-9]{4}-[0-9]{2}$" }),
+        transaction_ref: t.Optional(t.String()),
+        member_no: t.Optional(t.String()),
+        member_email: t.Optional(t.String()),
+        payment_method: t.Optional(t.String()),
+        payment_status: t.Optional(t.String()),
         notes: t.Optional(t.String()),
       }),
     },
