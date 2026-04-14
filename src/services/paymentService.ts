@@ -3,6 +3,7 @@ import type { Database } from "../types/database";
 
 type Transaction = Database["public"]["Tables"]["transactions"]["Row"];
 type TransactionInsert = Database["public"]["Tables"]["transactions"]["Insert"];
+type ContributionUpdate = Database["public"]["Tables"]["contributions"]["Update"];
 type Json = Database["public"]["Tables"]["transactions"]["Row"]["metadata"];
 
 export interface PaystackVerifyResponse {
@@ -83,6 +84,8 @@ export interface PaymentMetadata {
   contribution_id?: string;
   loan_id?: string;
   member_id: string;
+  member_no?: string;
+  member_name?: string;
   type: "contribution" | "loan_repayment" | "levy";
   [key: string]: unknown;
 }
@@ -172,13 +175,22 @@ export async function processSuccessfulPayment(
 
   // 2. Update contribution if applicable
   if (transaction.contribution_id) {
+    const updateData: ContributionUpdate = {
+      payment_status: "success",
+      transaction_ref: reference,
+      payment_method: channel,
+      member_email: verified.customer?.email ?? null,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Add member_no if available in metadata
+    if (metadata.member_no) {
+      updateData.member_no = metadata.member_no;
+    }
+
     await supabase
       .from("contributions")
-      .update({
-        status: "verified",
-        payment_ref: reference,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq("id", transaction.contribution_id)
       .eq("member_id", memberId);
   }

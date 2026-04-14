@@ -33,7 +33,7 @@ export const loanRoutes = new Elysia({ prefix: "/loans" })
         .from("contributions")
         .select("*", { count: "exact", head: true })
         .eq("member_id", userId)
-        .eq("status", "verified");
+        .eq("payment_status", "success");
 
       if ((count ?? 0) < 3)
         throw new Error("Minimum 3 verified contributions required to apply");

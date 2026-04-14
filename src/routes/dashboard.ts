@@ -21,10 +21,10 @@ export const dashboardRoutes = new Elysia({ prefix: "/dashboard" })
 
         supabase
           .from("contributions")
-          .select("amount, status, month")
+          .select("amount, payment_status, month")
           .eq("member_id", userId)
           .eq("year", currentYear)
-          .eq("status", "verified"),
+          .eq("payment_status", "success"),
 
         supabase
           .from("loans")

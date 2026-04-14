@@ -19,7 +19,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       ] = await Promise.all([
         // Total contributions
         supabase.from('contributions')
-          .select('amount, status')
+          .select('amount, payment_status')
           .eq('year', year),
 
         // Loans summary
@@ -41,7 +41,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       ])
 
       const contributions = contributionsResult.data ?? []
-      const verifiedContributions = contributions.filter(c => c.status === 'verified')
+      const verifiedContributions = contributions.filter(c => c.payment_status === 'success')
       const totalContributions = verifiedContributions.reduce((s, c) => s + Number(c.amount), 0)
 
       const loans = loansResult.data ?? []
@@ -69,7 +69,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
         contributions: {
           total: totalContributions,
           count: verifiedContributions.length,
-          pending: contributions.filter(c => c.status === 'pending').length,
+          pending: contributions.filter(c => c.payment_status === 'pending').length,
         },
         loans: {
           total_requested: totalLoanRequests,
@@ -121,7 +121,7 @@ export const reportRoutes = new Elysia({ prefix: '/reports' })
       if (!profile.data) throw new Error('Member not found')
 
       const totalContributions = contributions.data
-        ?.filter(c => c.status === 'verified')
+        ?.filter(c => c.payment_status === 'success')
         .reduce((s, c) => s + Number(c.amount), 0) ?? 0
 
       const activeLoans = loans.data?.filter(l => 

@@ -20,15 +20,18 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
       const [contributions, transactions] = await Promise.all([
         supabase
           .from("contributions")
-          .select("amount, month, year, status")
+          .select("amount, month, year, payment_status, transaction_ref")
           .eq("member_id", userId)
-          .eq("status", "verified"),
+          .eq("payment_status", "success"),
 
         supabase
           .from("transactions")
-          .select("id, amount, type, status, channel, description, created_at, paystack_ref", {
-            count: "exact",
-          })
+          .select(
+            "id, amount, type, status, channel, description, created_at, paystack_ref",
+            {
+              count: "exact",
+            },
+          )
           .eq("member_id", userId)
           .order("created_at", { ascending: false })
           .range(from, to),
@@ -45,13 +48,11 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
           .reduce((s, c) => s + Number(c.amount), 0) ?? 0;
 
       // Calculate monthly breakdown
-      const monthlyBreakdown = contributions.data?.reduce<Record<string, number>>(
-        (acc, c) => {
+      const monthlyBreakdown =
+        contributions.data?.reduce<Record<string, number>>((acc, c) => {
           acc[c.month] = (acc[c.month] ?? 0) + Number(c.amount);
           return acc;
-        },
-        {},
-      ) ?? {};
+        }, {}) ?? {};
 
       // Filter contributions by query params if provided
       let filteredContributions = contributions.data ?? [];
@@ -98,14 +99,18 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
       // Prevent duplicate contribution for the same month
       const { data: existing } = await supabase
         .from("contributions")
-        .select("id, status")
+        .select("id, payment_status")
         .eq("member_id", userId)
         .eq("month", body.month)
         .maybeSingle();
 
-      if (existing && existing.status !== "rejected") {
+      if (
+        existing &&
+        existing.payment_status !== "failed" &&
+        existing.payment_status !== "abandoned"
+      ) {
         throw new Error(
-          `A contribution for ${body.month} already exists with status: ${existing.status}`,
+          `A contribution for ${body.month} already exists with status: ${existing.payment_status}`,
         );
       }
 
@@ -116,9 +121,8 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
           amount: body.amount,
           month: body.month,
           year: parseInt(body.month.split("-")[0]),
-          proof_url: body.proof_url ?? null,
           notes: body.notes ?? null,
-          status: "pending",
+          payment_status: "pending",
         })
         .select()
         .single();
@@ -129,7 +133,6 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
       body: t.Object({
         amount: t.Number({ minimum: 1 }),
         month: t.String({ pattern: "^[0-9]{4}-[0-9]{2}$" }),
-        proof_url: t.Optional(t.String()),
         notes: t.Optional(t.String()),
       }),
     },
@@ -159,7 +162,7 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
         .select("*, profiles(full_name, member_no)", { count: "exact" })
         .order("created_at", { ascending: false })
         .range(from, to);
-      if (query.status) q = q.eq("status", query.status);
+      if (query.status) q = q.eq("payment_status", query.status);
       if (query.member_id) q = q.eq("member_id", query.member_id);
       if (query.year) q = q.eq("year", query.year);
       const { data, error, count } = await q;
@@ -184,7 +187,7 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
     async ({ params, body, userId }) => {
       const { data, error } = await supabase
         .from("contributions")
-        .update({ status: body.status, updated_at: new Date().toISOString() })
+        .update({ payment_status: body.status, updated_at: new Date().toISOString() })
         .eq("id", params.id)
         .select()
         .single();
@@ -198,6 +201,13 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
       return data;
     },
     {
-      body: t.Object({ status: t.Union([t.Literal("verified"), t.Literal("rejected")]) }),
+      body: t.Object({
+        status: t.Union([
+          t.Literal("success"),
+          t.Literal("failed"),
+          t.Literal("abandoned"),
+          t.Literal("pending"),
+        ]),
+      }),
     },
   );

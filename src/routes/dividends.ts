@@ -39,7 +39,7 @@ export const dividendRoutes = new Elysia({ prefix: "/dividends" })
         .from("contributions")
         .select("member_id, amount")
         .eq("year", body.year)
-        .eq("status", "verified");
+        .eq("payment_status", "success");
 
       // Aggregate contributions per member
       const memberTotals: Record<string, number> = {};

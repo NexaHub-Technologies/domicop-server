@@ -90,12 +90,14 @@ export type Database = {
           amount: number
           created_at: string
           id: string
+          member_email: string | null
           member_id: string
+          member_no: string | null
           month: string
           notes: string | null
-          payment_ref: string | null
-          proof_url: string | null
-          status: string
+          payment_method: string | null
+          payment_status: string | null
+          transaction_ref: string | null
           updated_at: string
           year: number
         }
@@ -103,12 +105,14 @@ export type Database = {
           amount: number
           created_at?: string
           id?: string
+          member_email?: string | null
           member_id: string
+          member_no?: string | null
           month: string
           notes?: string | null
-          payment_ref?: string | null
-          proof_url?: string | null
-          status?: string
+          payment_method?: string | null
+          payment_status?: string | null
+          transaction_ref?: string | null
           updated_at?: string
           year: number
         }
@@ -116,12 +120,14 @@ export type Database = {
           amount?: number
           created_at?: string
           id?: string
+          member_email?: string | null
           member_id?: string
+          member_no?: string | null
           month?: string
           notes?: string | null
-          payment_ref?: string | null
-          proof_url?: string | null
-          status?: string
+          payment_method?: string | null
+          payment_status?: string | null
+          transaction_ref?: string | null
           updated_at?: string
           year?: number
         }
@@ -507,7 +513,6 @@ export type Database = {
           member_no: string | null
           next_of_kin: string | null
           phone: string | null
-          preferences: Json | null
           push_notifications_enabled: boolean | null
           role: string
           status: string
@@ -527,7 +532,6 @@ export type Database = {
           member_no?: string | null
           next_of_kin?: string | null
           phone?: string | null
-          preferences?: Json | null
           push_notifications_enabled?: boolean | null
           role?: string
           status?: string
@@ -547,7 +551,6 @@ export type Database = {
           member_no?: string | null
           next_of_kin?: string | null
           phone?: string | null
-          preferences?: Json | null
           push_notifications_enabled?: boolean | null
           role?: string
           status?: string
