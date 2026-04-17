@@ -51,22 +51,26 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
         ],
       );
 
-      // Calculate total savings balance from successful contributions only
+      // Contributions stored in Naira, transactions in kobo
       const totalBalance =
         successfulContributions.data?.reduce((s, c) => s + Number(c.amount), 0) ?? 0;
 
-      // Calculate yearly balance
       const yearBalance =
         successfulContributions.data
           ?.filter((c) => c.year === year)
           .reduce((s, c) => s + Number(c.amount), 0) ?? 0;
 
-      // Calculate monthly breakdown
       const monthlyBreakdown =
         successfulContributions.data?.reduce<Record<string, number>>((acc, c) => {
           acc[c.month] = (acc[c.month] ?? 0) + Number(c.amount);
           return acc;
         }, {}) ?? {};
+
+      // Format transactions amounts only (contributions already in Naira)
+      const formattedTransactions = (transactions.data ?? []).map((t) => ({
+        ...t,
+        amount: Number(t.amount) / 100,
+      }));
 
       return {
         contributions: allContributions.data ?? [],
@@ -74,7 +78,7 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
         total_balance: totalBalance,
         year_balance: yearBalance,
         monthly_breakdown: monthlyBreakdown,
-        transactions: transactions.data,
+        transactions: formattedTransactions,
         total_transactions: transactions.count,
         page: Number(query.page) || 1,
         limit: Number(query.limit) || 20,
