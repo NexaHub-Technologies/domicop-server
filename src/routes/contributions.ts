@@ -51,44 +51,30 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
         ],
       );
 
-      // Calculate total savings balance from successful contributions only (in kobo)
-      const totalBalanceKobo =
+      // Calculate total savings balance from successful contributions only
+      const totalBalance =
         successfulContributions.data?.reduce((s, c) => s + Number(c.amount), 0) ?? 0;
 
-      // Calculate yearly balance (in kobo)
-      const yearBalanceKobo =
+      // Calculate yearly balance
+      const yearBalance =
         successfulContributions.data
           ?.filter((c) => c.year === year)
           .reduce((s, c) => s + Number(c.amount), 0) ?? 0;
 
-      // Calculate monthly breakdown (in kobo)
-      const monthlyBreakdownKobo =
+      // Calculate monthly breakdown
+      const monthlyBreakdown =
         successfulContributions.data?.reduce<Record<string, number>>((acc, c) => {
           acc[c.month] = (acc[c.month] ?? 0) + Number(c.amount);
           return acc;
         }, {}) ?? {};
 
-      // Format contributions with proper currency (divide by 100 for NGN)
-      const formattedContributions = (allContributions.data ?? []).map((c) => ({
-        ...c,
-        amount: Number(c.amount) / 100,
-      }));
-
-      // Format transactions amounts
-      const formattedTransactions = (transactions.data ?? []).map((t) => ({
-        ...t,
-        amount: Number(t.amount) / 100,
-      }));
-
       return {
-        contributions: formattedContributions,
+        contributions: allContributions.data ?? [],
         total_count: allContributions.count ?? 0,
-        total_balance: totalBalanceKobo / 100,
-        year_balance: yearBalanceKobo / 100,
-        monthly_breakdown: Object.fromEntries(
-          Object.entries(monthlyBreakdownKobo).map(([k, v]) => [k, v / 100])
-        ),
-        transactions: formattedTransactions,
+        total_balance: totalBalance,
+        year_balance: yearBalance,
+        monthly_breakdown: monthlyBreakdown,
+        transactions: transactions.data,
         total_transactions: transactions.count,
         page: Number(query.page) || 1,
         limit: Number(query.limit) || 20,
@@ -154,10 +140,7 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
       .eq("member_id", userId)
       .single();
     if (error) throw new Error("Contribution not found");
-    return {
-      ...data,
-      amount: Number(data.amount) / 100,
-    };
+    return data;
   })
 
   // Admin routes
