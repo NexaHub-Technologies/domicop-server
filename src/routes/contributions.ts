@@ -23,7 +23,10 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
         [
           supabase
             .from("contributions")
-            .select("*", { count: "exact" })
+            .select(
+              "amount, year, month, transaction_ref, member_no, member_email, payment_method, payment_status, notes, created_at, updated_at",
+              { count: "exact" }
+            )
             .eq("member_id", userId)
             .order("created_at", { ascending: false })
             .range(from, to),
@@ -138,7 +141,7 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
   .get("/:id", async ({ params, userId }) => {
     const { data, error } = await supabase
       .from("contributions")
-      .select("*, transactions(paystack_ref, channel, created_at)")
+      .select("amount, year, month, transaction_ref, member_no, member_email, payment_method, payment_status, notes, created_at, updated_at, transactions(paystack_ref, channel, created_at)")
       .eq("id", params.id)
       .eq("member_id", userId)
       .single();
