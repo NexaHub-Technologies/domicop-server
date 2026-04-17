@@ -9,17 +9,24 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
   .use(authenticate)
 
   // (tabs)/savings.tsx + transactions/contribution-details.tsx → GET /contributions/me
-  // Returns contributions list with balance summary and transaction history
+  // Returns all contributions with balance summary (calculated from successful contributions only)
   .get(
     "/me",
     async ({ userId, query }) => {
       const year = query.year ?? new Date().getFullYear();
       const { from, to } = paginate(query.page ?? 1, query.limit ?? 20);
 
-      const [contributions, transactions] = await Promise.all([
+      const [allContributions, successfulContributions, transactions] = await Promise.all([
         supabase
           .from("contributions")
-          .select("amount, month, year, payment_status, transaction_ref")
+          .select("*", { count: "exact" })
+          .eq("member_id", userId)
+          .order("created_at", { ascending: false })
+          .range(from, to),
+
+        supabase
+          .from("contributions")
+          .select("amount, month, year")
           .eq("member_id", userId)
           .eq("payment_status", "success"),
 
@@ -36,38 +43,34 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
           .range(from, to),
       ]);
 
-      // Calculate total savings balance
+      // Calculate total savings balance from successful contributions only
       const totalBalance =
-        contributions.data?.reduce((s, c) => s + Number(c.amount), 0) ?? 0;
+        successfulContributions.data?.reduce((s, c) => s + Number(c.amount), 0) ?? 0;
 
       // Calculate yearly balance
       const yearBalance =
-        contributions.data
+        successfulContributions.data
           ?.filter((c) => c.year === year)
           .reduce((s, c) => s + Number(c.amount), 0) ?? 0;
 
       // Calculate monthly breakdown
       const monthlyBreakdown =
-        contributions.data?.reduce<Record<string, number>>((acc, c) => {
+        successfulContributions.data?.reduce<Record<string, number>>((acc, c) => {
           acc[c.month] = (acc[c.month] ?? 0) + Number(c.amount);
           return acc;
         }, {}) ?? {};
 
-      // Filter contributions by query params if provided
-      let filteredContributions = contributions.data ?? [];
+      // Filter successful contributions by year if provided
+      let filteredSuccessful = successfulContributions.data ?? [];
       if (query.year) {
-        filteredContributions = filteredContributions.filter(
+        filteredSuccessful = filteredSuccessful.filter(
           (c) => c.year === query.year,
-        );
-      }
-      if (query.month) {
-        filteredContributions = filteredContributions.filter(
-          (c) => c.month === query.month,
         );
       }
 
       return {
-        contributions: filteredContributions,
+        contributions: allContributions.data ?? [],
+        total_count: allContributions.count ?? 0,
         total_balance: totalBalance,
         year_balance: yearBalance,
         monthly_breakdown: monthlyBreakdown,
