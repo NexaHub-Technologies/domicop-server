@@ -6,7 +6,6 @@ import { authRoutes } from "./routes/auth";
 import { memberRoutes } from "./routes/members";
 import { dashboardRoutes } from "./routes/dashboard";
 import { contributionRoutes } from "./routes/contributions";
-import { paymentRoutes, webhookHandler } from "./routes/payments";
 import { loanRoutes } from "./routes/loans";
 import { dividendRoutes } from "./routes/dividends";
 import { messageRoutes } from "./routes/messages";
@@ -42,15 +41,11 @@ const app = new Elysia()
     env: process.env.NODE_ENV,
   }))
 
-  // Paystack webhook must be mounted BEFORE any body-parsing middleware
-  .use(webhookHandler)
-
   // All application routes
   .use(authRoutes)
   .use(memberRoutes)
   .use(dashboardRoutes)
   .use(contributionRoutes)
-  .use(paymentRoutes)
   .use(loanRoutes)
   .use(dividendRoutes)
   .use(messageRoutes)

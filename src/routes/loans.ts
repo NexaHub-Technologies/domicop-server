@@ -55,8 +55,6 @@ export const loanRoutes = new Elysia({ prefix: "/loans" })
           purpose: body.purpose,
           type: body.type,
           tenure_months: body.tenure_months,
-          guarantor_id: body.guarantor_id ?? null,
-          documents_url: body.documents_url ?? [],
           status: "pending",
         })
         .select()
@@ -76,8 +74,6 @@ export const loanRoutes = new Elysia({ prefix: "/loans" })
           t.Literal("business"),
         ]),
         tenure_months: t.Number({ minimum: 1, maximum: 36 }),
-        guarantor_id: t.Optional(t.String()),
-        documents_url: t.Optional(t.Array(t.String())),
       }),
     },
   )
@@ -93,6 +89,102 @@ export const loanRoutes = new Elysia({ prefix: "/loans" })
     if (error) throw new Error("Loan not found");
     return data;
   })
+
+  // POST /loans/:id/repayment - Process loan repayment from Paystack verified response
+  .post(
+    "/:id/repayment",
+    async ({ params, body, userId }) => {
+      const paystackData = body as {
+        reference: string;
+        amount: number;
+        channel: string;
+        customer: {
+          email: string;
+          first_name: string | null;
+          last_name: string | null;
+        };
+        metadata?: Record<string, unknown>;
+      };
+
+      const { data: loan, error: loanError } = await supabase
+        .from("loans")
+        .select("id, member_id, balance, status")
+        .eq("id", params.id)
+        .eq("member_id", userId)
+        .single();
+
+      if (loanError || !loan) {
+        throw new Error("Loan not found or does not belong to member");
+      }
+
+      const amount = paystackData.amount / 100;
+      const newBalance = Math.max(0, Number(loan.balance) - amount);
+
+      const { error: updateError } = await supabase
+        .from("loans")
+        .update({
+          balance: newBalance,
+          status: newBalance === 0 ? "closed" : "repaying",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", params.id);
+
+      if (updateError) {
+        throw new Error(`Failed to update loan: ${updateError.message}`);
+      }
+
+      const { error: txError } = await supabase.from("transactions").insert({
+        paystack_ref: paystackData.reference,
+        member_id: userId,
+        amount: paystackData.amount,
+        type: "loan_repayment",
+        status: "success",
+        channel: paystackData.channel,
+        loan_id: params.id,
+        metadata: {
+          paystack_response: paystackData,
+          processed_at: new Date().toISOString(),
+        } as unknown as Database["public"]["Tables"]["transactions"]["Row"]["metadata"],
+      });
+
+      if (txError) {
+        throw new Error(`Failed to record transaction: ${txError.message}`);
+      }
+
+      await supabase.from("notifications").insert({
+        member_id: userId,
+        title: "Loan Repayment Successful",
+        body: `₦${amount.toLocaleString()} has been processed successfully.`,
+        type: "payment",
+        data: {
+          loan_id: params.id,
+          reference: paystackData.reference,
+          amount: amount,
+        },
+      });
+
+      return {
+        success: true,
+        loan_id: params.id,
+        amount_paid: amount,
+        remaining_balance: newBalance,
+        status: newBalance === 0 ? "closed" : "repaying",
+      };
+    },
+    {
+      body: t.Object({
+        reference: t.String(),
+        amount: t.Number(),
+        channel: t.String(),
+        customer: t.Object({
+          email: t.String(),
+          first_name: t.Optional(t.String()),
+          last_name: t.Optional(t.String()),
+        }),
+        metadata: t.Optional(t.Record(t.String(), t.Unknown())),
+      }),
+    },
+  )
 
   .use(requireAdmin)
 

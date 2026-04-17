@@ -45,8 +45,6 @@ CREATE TABLE IF NOT EXISTS public.loans (
     balance DECIMAL(10,2) DEFAULT 0,
     disbursed_at TIMESTAMPTZ,
     due_date TIMESTAMPTZ,
-    guarantor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    documents_url TEXT[],
     admin_notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

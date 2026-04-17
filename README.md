@@ -232,8 +232,6 @@ create table public.loans (
   balance           numeric(12,2) default 0,
   disbursed_at      timestamptz,
   due_date          timestamptz,
-  guarantor_id      uuid references public.profiles(id),
-  documents_url     text[],
   admin_notes       text,
   created_at        timestamptz default now(),
   updated_at        timestamptz default now()

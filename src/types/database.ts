@@ -187,9 +187,7 @@ export type Database = {
           balance: number | null
           created_at: string
           disbursed_at: string | null
-          documents_url: string[] | null
           due_date: string | null
-          guarantor_id: string | null
           id: string
           interest_rate: number | null
           member_id: string
@@ -207,9 +205,7 @@ export type Database = {
           balance?: number | null
           created_at?: string
           disbursed_at?: string | null
-          documents_url?: string[] | null
           due_date?: string | null
-          guarantor_id?: string | null
           id?: string
           interest_rate?: number | null
           member_id: string
@@ -227,9 +223,7 @@ export type Database = {
           balance?: number | null
           created_at?: string
           disbursed_at?: string | null
-          documents_url?: string[] | null
           due_date?: string | null
-          guarantor_id?: string | null
           id?: string
           interest_rate?: number | null
           member_id?: string
@@ -241,13 +235,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "loans_guarantor_id_fkey"
-            columns: ["guarantor_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "loans_member_id_fkey"
             columns: ["member_id"]

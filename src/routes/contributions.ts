@@ -107,7 +107,7 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
         .from("contributions")
         .insert({
           member_id: userId,
-          amount: body.amount,
+          amount: body.payment_status === "success" ? body.amount * 100 : body.amount,
           year: body.year,
           month: body.month,
           transaction_ref: body.transaction_ref ?? null,
