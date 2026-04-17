@@ -14,7 +14,10 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
     "/me",
     async ({ userId, query }) => {
       const year = query.year ?? new Date().getFullYear();
-      const { from, to } = paginate(query.page ?? 1, query.limit ?? 20);
+      const { from, to } = paginate(
+        Number(query.page) || 1,
+        Number(query.limit) || 20
+      );
 
       const [allContributions, successfulContributions, transactions] = await Promise.all(
         [
@@ -76,8 +79,8 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
         monthly_breakdown: monthlyBreakdown,
         transactions: transactions.data,
         total_transactions: transactions.count,
-        page: query.page ?? 1,
-        limit: query.limit ?? 20,
+        page: Number(query.page) || 1,
+        limit: Number(query.limit) || 20,
       };
     },
     {
