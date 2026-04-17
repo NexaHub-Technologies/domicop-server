@@ -16,32 +16,34 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
       const year = query.year ?? new Date().getFullYear();
       const { from, to } = paginate(query.page ?? 1, query.limit ?? 20);
 
-      const [allContributions, successfulContributions, transactions] = await Promise.all([
-        supabase
-          .from("contributions")
-          .select("*", { count: "exact" })
-          .eq("member_id", userId)
-          .order("created_at", { ascending: false })
-          .range(from, to),
+      const [allContributions, successfulContributions, transactions] = await Promise.all(
+        [
+          supabase
+            .from("contributions")
+            .select("*", { count: "exact" })
+            .eq("member_id", userId)
+            .order("created_at", { ascending: false })
+            .range(from, to),
 
-        supabase
-          .from("contributions")
-          .select("amount, month, year")
-          .eq("member_id", userId)
-          .eq("payment_status", "success"),
+          supabase
+            .from("contributions")
+            .select("amount, month, year")
+            .eq("member_id", userId)
+            .eq("payment_status", "success"),
 
-        supabase
-          .from("transactions")
-          .select(
-            "id, amount, type, status, channel, description, created_at, paystack_ref",
-            {
-              count: "exact",
-            },
-          )
-          .eq("member_id", userId)
-          .order("created_at", { ascending: false })
-          .range(from, to),
-      ]);
+          supabase
+            .from("transactions")
+            .select(
+              "id, amount, type, status, channel, description, created_at, paystack_ref",
+              {
+                count: "exact",
+              },
+            )
+            .eq("member_id", userId)
+            .order("created_at", { ascending: false })
+            .range(from, to),
+        ],
+      );
 
       // Calculate total savings balance from successful contributions only
       const totalBalance =
@@ -63,9 +65,7 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
       // Filter successful contributions by year if provided
       let filteredSuccessful = successfulContributions.data ?? [];
       if (query.year) {
-        filteredSuccessful = filteredSuccessful.filter(
-          (c) => c.year === query.year,
-        );
+        filteredSuccessful = filteredSuccessful.filter((c) => c.year === query.year);
       }
 
       return {
