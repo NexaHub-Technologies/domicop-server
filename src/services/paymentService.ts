@@ -174,8 +174,10 @@ export async function processSuccessfulPayment(
   }
 
   // 2. Update contribution if applicable
+  // Store what Paystack returns (amount is in kobo)
   if (transaction.contribution_id) {
     const updateData: ContributionUpdate = {
+      amount: verified.amount, // Paystack returns amount in kobo
       payment_status: "success",
       transaction_ref: reference,
       payment_method: channel,
