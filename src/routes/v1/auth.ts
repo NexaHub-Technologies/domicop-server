@@ -1,7 +1,7 @@
 import Elysia, { t } from "elysia";
-import { supabaseAuth, supabase } from "../lib/supabase";
-import { authenticate } from "../middleware/authenticate";
-import { authRateLimit } from "../middleware/rateLimiter";
+import { supabaseAuth, supabase } from "@/lib/supabase";
+import { authenticate } from "@/middleware/authenticate";
+import { authRateLimit } from "@/middleware/rateLimiter";
 
 /**
  * Authentication Routes

@@ -1,11 +1,11 @@
 import Elysia, { t } from "elysia";
-import { authenticate } from "../middleware/authenticate";
-import { requireAdmin } from "../middleware/requireAdmin";
-import { requireActive } from "../middleware/requireActive";
-import { supabase } from "../lib/supabase";
-import { writeAuditLog } from "../utils/audit";
-import { paginationQS, paginate } from "../utils/validators";
-import type { Database } from "../types/database";
+import { authenticate } from "@/middleware/authenticate";
+import { requireAdmin } from "@/middleware/requireAdmin";
+import { requireActive } from "@/middleware/requireActive";
+import { supabase } from "@/lib/supabase";
+import { writeAuditLog } from "@/utils/audit";
+import { paginationQS, paginate } from "@/utils/validators";
+import type { Database } from "@/types/database";
 
 type LoanUpdate = Database["public"]["Tables"]["loans"]["Update"];
 

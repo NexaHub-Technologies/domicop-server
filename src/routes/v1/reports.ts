@@ -1,7 +1,7 @@
 import Elysia, { t }    from 'elysia'
-import { authenticate } from '../middleware/authenticate'
-import { requireAdmin } from '../middleware/requireAdmin'
-import { supabase }     from '../lib/supabase'
+import { authenticate } from '@/middleware/authenticate'
+import { requireAdmin } from '@/middleware/requireAdmin'
+import { supabase }     from '@/lib/supabase'
 
 export const reportRoutes = new Elysia({ prefix: '/reports' })
   .use(authenticate)

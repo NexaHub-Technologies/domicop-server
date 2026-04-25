@@ -2,17 +2,7 @@ import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { swagger } from "@elysiajs/swagger";
 import { logger } from "@bogeychan/elysia-logger";
-import { authRoutes } from "./routes/auth";
-import { memberRoutes } from "./routes/members";
-import { dashboardRoutes } from "./routes/dashboard";
-import { contributionRoutes } from "./routes/contributions";
-import { loanRoutes } from "./routes/loans";
-import { dividendRoutes } from "./routes/dividends";
-import { messageRoutes } from "./routes/messages";
-import { notificationRoutes } from "./routes/notifications";
-import { websocketRoutes } from "./routes/websocket";
-import { announcementRoutes } from "./routes/announcements";
-import { reportRoutes } from "./routes/reports";
+import { v1Routes } from "@/routes/v1";
 
 const app = new Elysia()
   .use(
@@ -33,6 +23,7 @@ const app = new Elysia()
     status: "running",
     documentation: "/swagger",
     health: "/health",
+    base_path: "/v1",
   }))
 
   .get("/health", () => ({
@@ -41,18 +32,8 @@ const app = new Elysia()
     env: process.env.NODE_ENV,
   }))
 
-  // All application routes
-  .use(authRoutes)
-  .use(memberRoutes)
-  .use(dashboardRoutes)
-  .use(contributionRoutes)
-  .use(loanRoutes)
-  .use(dividendRoutes)
-  .use(messageRoutes)
-  .use(notificationRoutes)
-  .use(websocketRoutes)
-  .use(announcementRoutes)
-  .use(reportRoutes)
+  // Application routes
+  .use(v1Routes)
 
   .onError(({ code, error, set }) => {
     const err = error as Error;

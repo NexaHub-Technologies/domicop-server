@@ -1,11 +1,11 @@
 import Elysia, { t } from "elysia";
-import { authenticate } from "../middleware/authenticate";
-import { requireAdmin } from "../middleware/requireAdmin";
-import { supabase } from "../lib/supabase";
+import { authenticate } from "@/middleware/authenticate";
+import { requireAdmin } from "@/middleware/requireAdmin";
+import { supabase } from "@/lib/supabase";
 import {
   NotificationService,
   NotificationPayload,
-} from "../services/notificationService";
+} from "@/services/notificationService";
 
 const notificationService = NotificationService.getInstance();
 

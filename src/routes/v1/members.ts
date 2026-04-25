@@ -1,9 +1,9 @@
 import Elysia, { t } from "elysia";
-import { authenticate } from "../middleware/authenticate";
-import { requireAdmin } from "../middleware/requireAdmin";
-import { supabase } from "../lib/supabase";
-import { writeAuditLog } from "../utils/audit";
-import { paginationQS, paginate } from "../utils/validators";
+import { authenticate } from "@/middleware/authenticate";
+import { requireAdmin } from "@/middleware/requireAdmin";
+import { supabase } from "@/lib/supabase";
+import { writeAuditLog } from "@/utils/audit";
+import { paginationQS, paginate } from "@/utils/validators";
 
 export const memberRoutes = new Elysia({ prefix: "/members" })
 

@@ -12,7 +12,7 @@
  */
 
 import { Elysia, t } from "elysia";
-import { supabaseAuth } from "../lib/supabase";
+import { supabaseAuth } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
 /**

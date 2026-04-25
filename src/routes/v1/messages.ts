@@ -1,8 +1,8 @@
 import Elysia, { t } from "elysia";
-import { authenticate } from "../middleware/authenticate";
-import { requireAdmin } from "../middleware/requireAdmin";
-import { supabase } from "../lib/supabase";
-import { NotificationService } from "../services/notificationService";
+import { authenticate } from "@/middleware/authenticate";
+import { requireAdmin } from "@/middleware/requireAdmin";
+import { supabase } from "@/lib/supabase";
+import { NotificationService } from "@/services/notificationService";
 
 const notificationService = NotificationService.getInstance();
 

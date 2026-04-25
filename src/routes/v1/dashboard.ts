@@ -1,6 +1,6 @@
 import Elysia from "elysia";
-import { authenticate } from "../middleware/authenticate";
-import { supabase } from "../lib/supabase";
+import { authenticate } from "@/middleware/authenticate";
+import { supabase } from "@/lib/supabase";
 
 export const dashboardRoutes = new Elysia({ prefix: "/dashboard" })
   .use(authenticate)
