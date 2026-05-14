@@ -1,12 +1,9 @@
-[build]
-  builder = "nixpacks"
-
 [deploy]
-  startCommand = "bun src/index.ts"
-  restartPolicyType = "ON_FAILURE" # Fix: Changed from "on-failure"
-  restartPolicyMaxRetries = 3
-  healthcheckPath = "/health"
-  healthcheckTimeout = 300
+startCommand = "bun src/index.ts"
+restartPolicyType = "ON_FAILURE" # Fix: Changed from "on-failure"
+restartPolicyMaxRetries = 3
+healthcheckPath = "/health"
+healthcheckTimeout = 300
 
 [[services]]
-  name = "domicop-api"
+name = "domicop-api"
