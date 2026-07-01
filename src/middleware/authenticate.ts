@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/v1/auth/confirm-reset",
   "/v1/auth/resend-verification",
   "/v1/auth/refresh",
+  "/v1/auth/oauth/google",
   "/v1/webhooks/paystack",
   "/banks",
   "/auth/login",
@@ -17,6 +18,7 @@ const PUBLIC_PATHS = [
   "/auth/confirm-reset",
   "/auth/resend-verification",
   "/auth/refresh",
+  "/auth/oauth/google",
   "/webhooks/paystack",
 ];
 

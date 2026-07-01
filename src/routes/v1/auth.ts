@@ -419,12 +419,160 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
   )
 
   /**
+   * Login with Google OAuth
+   *
+   * Authenticates a user via Google ID token obtained from native Google Sign-In.
+   * The client obtains the ID token natively (using @react-native-google-signin/google-signin)
+   * and sends it to this endpoint. Supabase verifies the token and creates/returns the session.
+   * Auto-creates a profile via the database trigger if the user is new.
+   *
+   * @route POST /auth/oauth/google
+   * @group Authentication
+   * @param {Object} body - Request body
+   * @param {string} body.id_token - Google ID token from native Google Sign-In
+   * @param {string} [body.nonce] - Optional nonce for token verification
+   * @returns {Object} 200 - Success response
+   * @returns {string} 200.access_token - JWT access token
+   * @returns {string} 200.refresh_token - JWT refresh token
+   * @returns {number} 200.expires_in - Token expiration time in seconds
+   * @returns {Object} 200.user - User information
+   * @returns {string} 200.user.id - User UUID
+   * @returns {string} 200.user.email - User email
+   * @returns {string} 200.user.role - User role ('admin' | 'member')
+   * @returns {boolean} 200.user.email_verified - Whether email is verified
+   * @returns {Error} 401 - Invalid Google token
+   *
+   * @example
+   * ```typescript
+   * // Request
+   * POST /auth/oauth/google
+   * {
+   *   "id_token": "eyJhbGciOiJSUzI1NiIs...",
+   *   "nonce": "optional-nonce"
+   * }
+   *
+   * // Success Response
+   * {
+   *   "access_token": "eyJhbGciOiJIUzI1NiIs...",
+   *   "refresh_token": "xxx",
+   *   "expires_in": 3600,
+   *   "user": {
+   *     "id": "uuid",
+   *     "email": "user@gmail.com",
+   *     "role": "member",
+   *     "email_verified": true
+   *   }
+   * }
+   * ```
+   */
+  .post(
+    "/oauth/google",
+    async ({ body, set }) => {
+      const { data, error } = await supabaseAuth.auth.signInWithIdToken({
+        provider: "google",
+        token: body.id_token,
+        nonce: body.nonce,
+      });
+
+      if (error) {
+        set.status = 401;
+        throw new Error(error.message);
+      }
+
+      // Fetch profile to get role and status (profile is auto-created by trigger)
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, status")
+        .eq("id", data.user.id)
+        .single();
+
+      return {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        expires_in: data.session.expires_in,
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          role: profile?.role ?? data.user.app_metadata?.user_role ?? "member",
+          email_verified: !!data.user.email_confirmed_at,
+        },
+      };
+    },
+    {
+      body: t.Object({
+        id_token: t.String(),
+        nonce: t.Optional(t.String()),
+      }),
+    },
+  )
+
+  /**
    * Authenticated routes middleware
    *
    * All routes after this point require a valid JWT token in the Authorization header.
    * The authenticate middleware validates the token and adds user context.
    */
   .use(authenticate)
+
+  /**
+   * Link Google account to existing user
+   *
+   * Links a Google OAuth identity to an existing email/password account.
+   * Requires the user to be authenticated. After linking, the user can
+   * log in with either email/password or Google.
+   *
+   * @route POST /auth/link/google
+   * @group Authentication
+   * @security Bearer
+   * @param {Object} body - Request body
+   * @param {string} body.id_token - Google ID token from native Google Sign-In
+   * @param {string} [body.nonce] - Optional nonce for token verification
+   * @returns {Object} 200 - Success response
+   * @returns {boolean} 200.success - Always true
+   * @returns {string} 200.message - Success message
+   * @returns {Error} 400 - Failed to link account
+   * @returns {Error} 401 - Unauthorized (invalid or missing token)
+   *
+   * @example
+   * ```typescript
+   * // Request
+   * POST /auth/link/google
+   * Authorization: Bearer <token>
+   * {
+   *   "id_token": "eyJhbGciOiJSUzI1NiIs...",
+   *   "nonce": "optional-nonce"
+   * }
+   *
+   * // Success Response
+   * {
+   *   "success": true,
+   *   "message": "Google account linked successfully"
+   * }
+   * ```
+   */
+  .post(
+    "/link/google",
+    async ({ body, set }) => {
+      const { error } = await supabaseAuth.auth.linkIdentity({
+        provider: "google",
+        token: body.id_token,
+        nonce: body.nonce,
+      });
+
+      if (error) {
+        set.status = 400;
+        throw new Error(error.message);
+      }
+
+      return { success: true, message: "Google account linked successfully" };
+    },
+    {
+      body: t.Object({
+        id_token: t.String(),
+        nonce: t.Optional(t.String()),
+      }),
+    },
+  )
 
   /**
    * Change password
