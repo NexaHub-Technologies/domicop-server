@@ -1,5 +1,5 @@
 import Elysia from "elysia";
-import { supabaseAuth } from "../lib/supabase";
+import { supabaseAuth, supabase } from "../lib/supabase";
 
 const PUBLIC_PATHS = [
   "/v1/banks",
@@ -48,9 +48,19 @@ export const authenticate = new Elysia({ name: "authenticate" }).derive(
       throw new Error("Invalid or expired token");
     }
 
+    // Admin authorization lives in admin_profiles (see 20260703_admin_profiles_table).
+    // A row there is what makes an account an admin; members have none.
+    const { data: adminRow } = await supabase
+      .from("admin_profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+    const isAdmin = !!adminRow;
+
     return {
       user,
-      role: (user.app_metadata?.user_role as string) ?? "member",
+      role: isAdmin ? "admin" : "member",
+      isAdmin,
       userId: user.id,
       token,
     };

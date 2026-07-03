@@ -96,6 +96,12 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         );
       }
 
+      const { data: adminRow } = await supabase
+        .from("admin_profiles")
+        .select("id")
+        .eq("id", data.user!.id)
+        .maybeSingle();
+
       return {
         access_token: data.session!.access_token,
         refresh_token: data.session!.refresh_token,
@@ -103,7 +109,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         user: {
           id: data.user!.id,
           email: data.user!.email,
-          role: data.user!.app_metadata?.user_role ?? "member",
+          role: adminRow ? "admin" : "member",
           email_verified: !!data.user!.email_confirmed_at,
         },
       };
@@ -494,12 +500,12 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         throw new Error(error.message);
       }
 
-      // Fetch profile to get role and status (profile is auto-created by trigger)
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role, status")
+      // Google sign-ins are members; admin status still comes from admin_profiles
+      const { data: adminRow } = await supabase
+        .from("admin_profiles")
+        .select("id")
         .eq("id", data.user.id)
-        .single();
+        .maybeSingle();
 
       return {
         access_token: data.session.access_token,
@@ -508,7 +514,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         user: {
           id: data.user.id,
           email: data.user.email,
-          role: profile?.role ?? data.user.app_metadata?.user_role ?? "member",
+          role: adminRow ? "admin" : "member",
           email_verified: !!data.user.email_confirmed_at,
         },
       };

@@ -148,6 +148,8 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
       return data;
     },
     {
+      // Note: admin status is managed via /admins (admin_profiles), not here —
+      // profiles.role no longer grants admin authorization.
       body: t.Partial(
         t.Object({
           status: t.Union([
@@ -155,7 +157,6 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
             t.Literal("active"),
             t.Literal("suspended"),
           ]),
-          role: t.Union([t.Literal("member"), t.Literal("admin")]),
           member_no: t.String(),
         }),
       ),

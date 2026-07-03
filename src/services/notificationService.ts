@@ -552,6 +552,16 @@ export class NotificationService {
       return target.userIds;
     }
 
+    // Admins live in their own table; there is no "active" gate for them.
+    if (target.role === "admin") {
+      const { data, error } = await supabase.from("admin_profiles").select("id");
+      if (error) {
+        console.error("Error fetching admin target users:", error);
+        return [];
+      }
+      return data?.map((a) => a.id) || [];
+    }
+
     let query = supabase.from("profiles").select("id");
 
     if (target.role) {

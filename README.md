@@ -495,6 +495,17 @@ Once the server is running, visit:
 - `GET /members/me/security` - Get security info
 - `PATCH /members/me/preferences` - Update preferences
 
+#### Admins (`/admins`)
+Admin accounts live in the dedicated `admin_profiles` table, separate from member `profiles`. **A row in `admin_profiles` is what grants admin authorization** (the old `profiles.role = 'admin'` flag no longer does). All `/admins` routes require an existing admin.
+- `GET /admins` - List all admins
+- `POST /admins` - Create an admin `{ email, password, full_name, phone? }`
+- `DELETE /admins/:id` - Revoke an admin (deletes the auth user; cannot revoke yourself)
+
+Bootstrap the **first** admin (the API requires an existing admin, so this can't be done over HTTP):
+```bash
+bun run scripts/create-admin.ts <email> <password> "<full name>" [phone]
+```
+
 #### Dashboard (`/dashboard`)
 - `GET /dashboard/summary` - Dashboard summary data
 

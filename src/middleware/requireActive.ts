@@ -8,7 +8,12 @@ import { supabase } from "../lib/supabase";
  */
 export const requireActive = new Elysia({ name: "requireActive" }).derive(
   { as: "scoped" },
-  async ({ userId, set }: any) => {
+  async ({ userId, role, set }: any) => {
+    // Admins have no member profile row and no "active" gate — let them pass.
+    if (role === "admin") {
+      return { profile: null };
+    }
+
     const { data: profile, error } = await supabase
       .from("profiles")
       .select("status, role")

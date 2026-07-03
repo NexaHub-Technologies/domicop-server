@@ -14,7 +14,7 @@
  */
 
 import { Elysia, t } from "elysia";
-import { supabaseAuth } from "@/lib/supabase";
+import { supabaseAuth, supabase } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
 /**
@@ -60,7 +60,14 @@ export const websocketRoutes = new Elysia().ws("/ws/notifications", {
       return "Invalid or expired token";
     }
 
+    const { data: adminRow } = await supabase
+      .from("admin_profiles")
+      .select("id")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
     (ctx as Record<string, unknown>).user = data.user;
+    (ctx as Record<string, unknown>).isAdmin = !!adminRow;
     return undefined;
   },
 
@@ -70,8 +77,9 @@ export const websocketRoutes = new Elysia().ws("/ws/notifications", {
    * Subscribes client to appropriate channels based on role
    */
   open(ws) {
-    const user = (ws.data as unknown as { user: User }).user;
-    const role = user.app_metadata?.user_role || "member";
+    const data = ws.data as unknown as { user: User; isAdmin?: boolean };
+    const user = data.user;
+    const role = data.isAdmin ? "admin" : "member";
 
     console.log(`[WebSocket] Connected: ${user.email} (${role})`);
 
