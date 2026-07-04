@@ -8,7 +8,12 @@ import { NotificationService } from "@/services/notificationService";
 const app = new Elysia()
   .use(
     cors({
-      origin: [process.env.CLIENT_ADMIN_ORIGIN!, "http://localhost:3001", /^exp:\/\//],
+      origin: [
+        process.env.CLIENT_ADMIN_ORIGIN!,
+        "http://localhost:3000",
+        "http://localhost:3001",
+        /^exp:\/\//,
+      ],
       credentials: true,
       allowedHeaders: ["Content-Type", "Authorization"],
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
