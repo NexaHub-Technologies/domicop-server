@@ -46,7 +46,7 @@ export const announcementRoutes = new Elysia({ prefix: "/announcements" })
   .get("/all", async () => {
     const { data, error } = await supabase
       .from("announcements")
-      .select("*, profiles(full_name)")
+      .select("id, title, body, author_id, published, created_at, updated_at")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     return data;
@@ -64,7 +64,7 @@ export const announcementRoutes = new Elysia({ prefix: "/announcements" })
           author_id: userId!,
           published: body.published ?? false,
         })
-        .select()
+        .select("id, title, body, author_id, published, created_at, updated_at")
         .single();
       if (error) throw new Error(error.message);
       await writeAuditLog({
@@ -107,7 +107,7 @@ export const announcementRoutes = new Elysia({ prefix: "/announcements" })
           updated_at: new Date().toISOString(),
         })
         .eq("id", params.id)
-        .select()
+        .select("id, title, body, author_id, published, created_at, updated_at")
         .single();
       if (error) throw new Error(error.message);
       await writeAuditLog({
