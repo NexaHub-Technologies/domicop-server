@@ -20,7 +20,7 @@ export const dividendRoutes = new Elysia({ prefix: "/dividends" })
         .eq("year", year)
         .order("created_at", { ascending: false });
       if (error) throw new Error(error.message);
-      return data;
+      return { data, total: null };
     },
     { query: t.Partial(t.Object({ year: t.Numeric() })) },
   )
