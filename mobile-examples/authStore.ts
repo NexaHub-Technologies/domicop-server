@@ -2,7 +2,7 @@
  * Authentication Store Example
  * 
  * Example implementation using Zustand for state management.
- * Shows how to handle Google OAuth authentication flow.
+ * Shows how to handle the email/password authentication flow.
  * 
  * Install dependencies:
  * npm install zustand expo-secure-store
@@ -33,8 +33,7 @@ interface AuthState {
   
   // Actions
   setAuth: (data: { user: User; accessToken: string }) => void;
-  loginWithGoogle: (idToken: string, nonce: string) => Promise<void>;
-  linkGoogleAccount: (idToken: string, nonce: string) => Promise<boolean>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<boolean>;
   loadStoredAuth: () => Promise<void>;
@@ -60,23 +59,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   /**
-   * Login with Google OAuth
-   * Called from GoogleSignInButton component
+   * Login with email and password
+   * Called from the login screen
    */
-  loginWithGoogle: async (idToken: string, nonce: string) => {
+  login: async (email: string, password: string) => {
     set({ isLoading: true });
-    
+
     try {
-      const response = await fetch(`${API_URL}/auth/oauth/google`, {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: idToken, nonce }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Google login failed');
+        throw new Error(data.message || 'Login failed');
       }
 
       // Store tokens securely
@@ -93,48 +92,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     } catch (error) {
       set({ isLoading: false });
-      throw error;
-    }
-  },
-
-  /**
-   * Link Google account to existing email/password account
-   * Must be called when user is already authenticated
-   */
-  linkGoogleAccount: async (idToken: string, nonce: string): Promise<boolean> => {
-    const { accessToken } = get();
-    
-    if (!accessToken) {
-      throw new Error('Not authenticated');
-    }
-
-    try {
-      const response = await fetch(`${API_URL}/auth/link/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ id_token: idToken, nonce }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to link account');
-      }
-
-      // Update user data to reflect linked status
-      const { user } = get();
-      if (user) {
-        set({
-          user: { ...user /* update with linked info */ },
-        });
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Link account error:', error);
       throw error;
     }
   },

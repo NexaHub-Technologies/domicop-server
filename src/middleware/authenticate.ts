@@ -7,9 +7,7 @@ const PUBLIC_PATHS = [
   "/v1/auth/register",
   "/v1/auth/reset-password",
   "/v1/auth/confirm-reset",
-  "/v1/auth/resend-verification",
   "/v1/auth/refresh",
-  "/v1/auth/oauth/google",
   "/v1/webhooks/paystack",
   // WebSocket route authenticates itself in beforeHandle (browser clients
   // pass the token as ?token= since they cannot set headers)
@@ -19,9 +17,7 @@ const PUBLIC_PATHS = [
   "/auth/register",
   "/auth/reset-password",
   "/auth/confirm-reset",
-  "/auth/resend-verification",
   "/auth/refresh",
-  "/auth/oauth/google",
   "/webhooks/paystack",
   "/ws/notifications",
 ];

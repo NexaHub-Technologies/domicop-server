@@ -68,23 +68,7 @@ const handleLogin = async (email: string, password: string) => {
   const data = await response.json();
 
   if (!response.ok) {
-    if (data.message?.includes('verify your email')) {
-      // Offer to resend verification
-      Alert.alert(
-        'Email Not Verified',
-        'Please verify your email first.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Resend Email', 
-            onPress: () => resendVerification(email)
-          },
-        ]
-      );
-    } else {
-      throw new Error(data.message || 'Login failed');
-    }
-    return;
+    throw new Error(data.message || 'Login failed');
   }
 
   // Store tokens
@@ -119,21 +103,6 @@ const handleResetPassword = async (email: string) => {
     'Password Reset',
     'If that email is registered, a reset link has been sent.'
   );
-};
-```
-
-#### Resend Verification Email
-
-```typescript
-const resendVerification = async (email: string) => {
-  const response = await fetch(`${API_URL}/auth/resend-verification`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
-  });
-
-  const data = await response.json();
-  Alert.alert('Success', data.message);
 };
 ```
 
@@ -308,7 +277,6 @@ const styles = StyleSheet.create({
 | `/auth/logout` | POST | No | Logout |
 | `/auth/reset-password` | POST | No | Request password reset |
 | `/auth/confirm-reset` | POST | No | Confirm password reset |
-| `/auth/resend-verification` | POST | No | Resend verification email |
 | `/auth/change-password` | POST | Yes | Change password (requires current) |
 | `/auth/expo-token` | POST | Yes | Store Expo push token |
 

@@ -484,7 +484,6 @@ Once the server is running, visit:
 - `POST /auth/logout` - Logout
 - `POST /auth/reset-password` - Request password reset
 - `POST /auth/confirm-reset` - Confirm password reset with new password
-- `POST /auth/resend-verification` - Resend verification email
 - `POST /auth/change-password` - Change password (authenticated, requires current password)
 - `POST /auth/expo-token` - Store Expo push notification token
 
