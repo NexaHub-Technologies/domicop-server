@@ -86,10 +86,7 @@ export const notificationRoutes = new Elysia({ prefix: "/notifications" })
 
   // 4. DELETE /notifications/me — clear the inbox
   .delete("/me", async ({ userId }) => {
-    const { error } = await supabase
-      .from("notifications")
-      .delete()
-      .eq("member_id", userId!);
+    const { error } = await supabase.from("notifications").delete().eq("member_id", userId!);
     if (error) throw new Error(error.message);
     return new Response(null, { status: 204 });
   })
@@ -260,9 +257,11 @@ export const notificationRoutes = new Elysia({ prefix: "/notifications" })
         body: t.String(),
         data: t.Optional(t.Record(t.String(), t.Unknown())),
         sound: t.Optional(t.String()),
-        priority: t.Optional(t.Union([t.Literal("default"), t.Literal("normal"), t.Literal("high")])),
+        priority: t.Optional(
+          t.Union([t.Literal("default"), t.Literal("normal"), t.Literal("high")]),
+        ),
       }),
-    }
+    },
   )
 
   // Admin broadcast
@@ -271,10 +270,7 @@ export const notificationRoutes = new Elysia({ prefix: "/notifications" })
     async ({ body }) => {
       // Fetch target members (no push-token filter — tokenless users still
       // get the inbox row and WebSocket frame)
-      let query = supabase
-        .from("profiles")
-        .select("id")
-        .eq("status", "active");
+      let query = supabase.from("profiles").select("id").eq("status", "active");
 
       if (body.member_ids?.length) {
         query = query.in("id", body.member_ids);
@@ -304,5 +300,5 @@ export const notificationRoutes = new Elysia({ prefix: "/notifications" })
         data: t.Optional(t.Record(t.String(), t.String())),
         action: t.Optional(t.Object({ label: t.String(), url: t.String() })),
       }),
-    }
+    },
   );

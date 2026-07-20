@@ -1,13 +1,16 @@
 import Elysia, { t } from "elysia";
 import { authenticate } from "@/middleware/authenticate";
 import { requireAdmin } from "@/middleware/requireAdmin";
+import { blockSuspended } from "@/middleware/blockSuspended";
 import { supabase } from "@/lib/supabase";
 import { writeAuditLog } from "@/utils/audit";
-import { paginate } from "@/utils/validators";
+import { paginate, uuidParam } from "@/utils/validators";
 import { allocateContribution, MIN_CONTRIBUTION } from "@/services/contributionAllocation";
 import { NotificationService } from "@/services/notificationService";
-import { paystack } from "@/lib/paystack";
-import type { Database } from "@/types/database";
+import {
+  verifyContributionPayment,
+  VerificationResult,
+} from "@/services/contributionVerification";
 
 const notificationService = NotificationService.getInstance();
 
@@ -21,42 +24,34 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
     async ({ userId: _userId, query }) => {
       const userId = _userId!;
       const year = query.year ?? new Date().getFullYear();
-      const { from, to } = paginate(
-        Number(query.page) || 1,
-        Number(query.limit) || 20
-      );
+      const { from, to } = paginate(Number(query.page) || 1, Number(query.limit) || 20);
 
-      const [allContributions, successfulContributions, transactions] = await Promise.all(
-        [
-          supabase
-            .from("contributions")
-            .select(
-              "id, amount, shares, social, savings, deposit, year, month, transaction_ref, member_no, member_email, payment_method, payment_status, notes, created_at, updated_at",
-              { count: "exact" }
-            )
-            .eq("member_id", userId)
-            .order("created_at", { ascending: false })
-            .range(from, to),
+      const [allContributions, successfulContributions, transactions] = await Promise.all([
+        supabase
+          .from("contributions")
+          .select(
+            "id, amount, shares, social, savings, deposit, year, month, transaction_ref, member_no, member_email, payment_method, payment_status, notes, created_at, updated_at",
+            { count: "exact" },
+          )
+          .eq("member_id", userId)
+          .order("created_at", { ascending: false })
+          .range(from, to),
 
-          supabase
-            .from("contributions")
-            .select("amount, shares, social, savings, deposit, month, year")
-            .eq("member_id", userId)
-            .eq("payment_status", "success"),
+        supabase
+          .from("contributions")
+          .select("amount, shares, social, savings, deposit, month, year")
+          .eq("member_id", userId)
+          .eq("payment_status", "success"),
 
-          supabase
-            .from("transactions")
-            .select(
-              "id, amount, type, status, channel, description, created_at, paystack_ref",
-              {
-                count: "exact",
-              },
-            )
-            .eq("member_id", userId)
-            .order("created_at", { ascending: false })
-            .range(from, to),
-        ],
-      );
+        supabase
+          .from("transactions")
+          .select("id, amount, type, status, channel, description, created_at, paystack_ref", {
+            count: "exact",
+          })
+          .eq("member_id", userId)
+          .order("created_at", { ascending: false })
+          .range(from, to),
+      ]);
 
       const successData = successfulContributions.data ?? [];
 
@@ -70,17 +65,15 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
       const totalDeposit = successData.reduce((s, c) => s + Number(c.deposit ?? 0), 0);
 
       // Calculate yearly balance
-      const yearBalance =
-        successData
-          .filter((c) => c.year === year)
-          .reduce((s, c) => s + Number(c.amount), 0);
+      const yearBalance = successData
+        .filter((c) => c.year === year)
+        .reduce((s, c) => s + Number(c.amount), 0);
 
       // Calculate monthly breakdown
-      const monthlyBreakdown =
-        successData.reduce<Record<string, number>>((acc, c) => {
-          acc[c.month] = (acc[c.month] ?? 0) + Number(c.amount);
-          return acc;
-        }, {});
+      const monthlyBreakdown = successData.reduce<Record<string, number>>((acc, c) => {
+        acc[c.month] = (acc[c.month] ?? 0) + Number(c.amount);
+        return acc;
+      }, {});
 
       return {
         contributions: allContributions.data ?? [],
@@ -111,10 +104,11 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
   )
 
   // transactions/add-contribution.tsx → POST /contributions
-  // Allow pending users to create contributions.
+  // Allow pending users to create contributions; only suspended members are blocked.
   // Members cannot self-declare a paid contribution: non-admin submissions are
   // forced to "pending" — the paid path is POST /contributions/verify, where the
   // server confirms the payment with Paystack itself.
+  .use(blockSuspended)
   .post(
     "/",
     async ({ userId: _userId, role, body }) => {
@@ -156,7 +150,12 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
           type: "contribution",
           title: "Contribution Received",
           body: `Your contribution of ₦${body.amount.toLocaleString()} for ${body.month} has been recorded.`,
-          data: { event: "contribution_recorded", contribution_id: data.id, amount: body.amount, month: body.month },
+          data: {
+            event: "contribution_recorded",
+            contribution_id: data.id,
+            amount: body.amount,
+            month: body.month,
+          },
           action: { label: "View Contributions", url: "/contributions" },
           notifyAdmins: true,
         });
@@ -193,126 +192,42 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
     "/verify",
     async ({ userId: _userId, body, set }) => {
       const userId = _userId!;
-      const reference = body.reference;
+      const result = await verifyContributionPayment(userId, body);
 
-      // Idempotency pre-check (unique index on transaction_ref backs this up)
-      const { data: existing } = await supabase
-        .from("contributions")
-        .select()
-        .eq("transaction_ref", reference)
-        .maybeSingle();
-      if (existing) {
-        return { verified: true, already_processed: true, contribution: existing };
+      switch (result.result) {
+        case VerificationResult.ReferenceNotFound:
+          set.status = 404;
+          return {
+            verified: false,
+            reason: "reference_not_found",
+            message: result.message,
+          };
+        case VerificationResult.PaymentNotSuccessful:
+          return { verified: false, status: result.paystack_status };
+        case VerificationResult.UnsupportedCurrency:
+          set.status = 422;
+          return {
+            verified: false,
+            reason: "unsupported_currency",
+            currency: result.currency,
+          };
+        case VerificationResult.BelowMinimum:
+          set.status = 422;
+          return {
+            verified: false,
+            reason: "below_minimum",
+            minimum: MIN_CONTRIBUTION,
+            amount: result.amount,
+          };
+        case VerificationResult.AlreadyProcessed:
+          return {
+            verified: true,
+            already_processed: true,
+            contribution: result.contribution,
+          };
+        case VerificationResult.Verified:
+          return { verified: true, contribution: result.contribution };
       }
-
-      let tx;
-      try {
-        tx = await paystack.verifyTransaction(reference);
-      } catch (err) {
-        set.status = 404;
-        return {
-          verified: false,
-          reason: "reference_not_found",
-          message: err instanceof Error ? err.message : "Verification failed",
-        };
-      }
-
-      if (tx.status !== "success") {
-        return { verified: false, status: tx.status };
-      }
-      if (tx.currency !== "NGN") {
-        set.status = 422;
-        return { verified: false, reason: "unsupported_currency", currency: tx.currency };
-      }
-
-      const amountNaira = tx.amount / 100;
-      // Reject below-minimum payments before any DB write so we neither orphan a
-      // transaction row nor build a broken allocation (see mds/allocation.md).
-      if (amountNaira < MIN_CONTRIBUTION) {
-        set.status = 422;
-        return {
-          verified: false,
-          reason: "below_minimum",
-          minimum: MIN_CONTRIBUTION,
-          amount: amountNaira,
-        };
-      }
-
-      // Race-safe idempotency gate: transactions.paystack_ref is UNIQUE, so a
-      // concurrent/replayed verify loses here and returns the existing record.
-      const { error: txError } = await supabase.from("transactions").insert({
-        paystack_ref: reference,
-        member_id: userId,
-        amount: tx.amount,
-        type: "contribution",
-        status: "success",
-        channel: tx.channel,
-        metadata: {
-          gateway_response: tx.gateway_response,
-          paid_at: tx.paid_at,
-          verified_at: new Date().toISOString(),
-        } as unknown as Database["public"]["Tables"]["transactions"]["Row"]["metadata"],
-      });
-      if (txError) {
-        if (txError.code === "23505") {
-          const { data: winner } = await supabase
-            .from("contributions")
-            .select()
-            .eq("transaction_ref", reference)
-            .maybeSingle();
-          return { verified: true, already_processed: true, contribution: winner };
-        }
-        throw new Error(`Failed to record transaction: ${txError.message}`);
-      }
-
-      const allocation = allocateContribution(amountNaira);
-
-      const { data: contribution, error } = await supabase
-        .from("contributions")
-        .insert({
-          member_id: userId,
-          amount: amountNaira,
-          shares: allocation.shares,
-          social: allocation.social,
-          savings: allocation.savings,
-          deposit: allocation.deposit,
-          year: body.year,
-          month: body.month,
-          transaction_ref: reference,
-          member_no: body.member_no ?? null,
-          member_email: body.member_email ?? null,
-          payment_method: tx.channel,
-          payment_status: "success",
-          notes: body.notes ?? null,
-        })
-        .select()
-        .single();
-      if (error) throw new Error(error.message);
-
-      await supabase
-        .from("transactions")
-        .update({ contribution_id: contribution.id })
-        .eq("paystack_ref", reference);
-
-      await writeAuditLog({
-        actor_id: userId,
-        action: "contribution_verified",
-        entity: "contributions",
-        entity_id: contribution.id,
-        metadata: { paystack_ref: reference, amount: amountNaira, channel: tx.channel },
-      });
-
-      await notificationService.notify({
-        userIds: [userId],
-        type: "contribution",
-        title: "Contribution Received",
-        body: `Your contribution of ₦${amountNaira.toLocaleString()} for ${body.month} has been recorded.`,
-        data: { event: "contribution_recorded", contribution_id: contribution.id, amount: amountNaira, month: body.month },
-        action: { label: "View Contributions", url: "/contributions" },
-        notifyAdmins: true,
-      });
-
-      return { verified: true, contribution };
     },
     {
       body: t.Object({
@@ -327,21 +242,27 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
   )
 
   // transactions/contribution-details-info.tsx → GET /contributions/:id
-  .get("/:id", async ({ params, userId: _userId, role }) => {
-    const userId = _userId!;
-    let q = supabase
-      .from("contributions")
-      .select("id, amount, shares, social, savings, deposit, year, month, transaction_ref, member_no, member_email, payment_method, payment_status, notes, created_at, updated_at, transactions(paystack_ref, channel, created_at)")
-      .eq("id", params.id);
+  .get(
+    "/:id",
+    async ({ params, userId: _userId, role }) => {
+      const userId = _userId!;
+      let q = supabase
+        .from("contributions")
+        .select(
+          "id, amount, shares, social, savings, deposit, year, month, transaction_ref, member_no, member_email, payment_method, payment_status, notes, created_at, updated_at, transactions(paystack_ref, channel, created_at)",
+        )
+        .eq("id", params.id);
 
-    if (role !== "admin") {
-      q = q.eq("member_id", userId);
-    }
+      if (role !== "admin") {
+        q = q.eq("member_id", userId);
+      }
 
-    const { data, error } = await q.single();
-    if (error) throw new Error("Contribution not found");
-    return data;
-  })
+      const { data, error } = await q.single();
+      if (error) throw new Error("Contribution not found");
+      return data;
+    },
+    { params: uuidParam },
+  )
 
   // Admin routes
   .use(requireAdmin)
@@ -389,9 +310,7 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
 
       if (!current) throw new Error("Contribution not found");
 
-      const allocation = isSuccess
-        ? allocateContribution(Number(current.amount))
-        : null;
+      const allocation = isSuccess ? allocateContribution(Number(current.amount)) : null;
 
       const { data, error } = await supabase
         .from("contributions")
@@ -424,7 +343,11 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
           body: isSuccess
             ? `Your contribution of ₦${amountNaira.toLocaleString()} for ${data.month} has been confirmed.`
             : `Your contribution for ${data.month} was marked as ${body.status}. Please contact support if this is unexpected.`,
-          data: { event: `contribution_${body.status}`, contribution_id: params.id, month: data.month },
+          data: {
+            event: `contribution_${body.status}`,
+            contribution_id: params.id,
+            month: data.month,
+          },
           action: { label: "View Contributions", url: "/contributions" },
         });
       }
@@ -432,6 +355,7 @@ export const contributionRoutes = new Elysia({ prefix: "/contributions" })
       return data;
     },
     {
+      params: uuidParam,
       body: t.Object({
         status: t.Union([
           t.Literal("success"),

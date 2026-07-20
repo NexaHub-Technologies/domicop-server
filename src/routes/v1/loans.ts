@@ -3,17 +3,20 @@ import { authenticate } from "@/middleware/authenticate";
 import { requireAdmin } from "@/middleware/requireAdmin";
 import { requireActive } from "@/middleware/requireActive";
 import { supabase } from "@/lib/supabase";
-import { paystack } from "@/lib/paystack";
 import { writeAuditLog } from "@/utils/audit";
-import { paginationQS, paginate } from "@/utils/validators";
+import { paginationQS, paginate, uuidParam } from "@/utils/validators";
 import type { Database } from "@/types/database";
 import { disburseLoan, notifyLoanApproved } from "@/services/loanDisbursement";
+import { processLoanRepayment, RepaymentResult } from "@/services/loanRepayment";
 import { NotificationService } from "@/services/notificationService";
 
 type LoanUpdate = Database["public"]["Tables"]["loans"]["Update"];
 
 export const loanRoutes = new Elysia({ prefix: "/loans" })
   .use(authenticate)
+  // Requires active account status for all member-scoped loan routes below
+  // (pending/suspended members cannot view or apply for loans)
+  .use(requireActive)
 
   // (tabs)/loans.tsx → GET /loans/me
   .get("/me", async ({ userId }) => {
@@ -27,8 +30,6 @@ export const loanRoutes = new Elysia({ prefix: "/loans" })
   })
 
   // transactions/apply-for-loan.tsx → POST /loans/apply
-  // Requires active account status (pending users cannot apply for loans)
-  .use(requireActive)
   .post(
     "/apply",
     async ({ userId, body, set }) => {
@@ -102,16 +103,20 @@ export const loanRoutes = new Elysia({ prefix: "/loans" })
   )
 
   // loans/[id].tsx → GET /loans/:id
-  .get("/:id", async ({ params, userId }) => {
-    const { data, error } = await supabase
-      .from("loans")
-      .select("*, transactions(paystack_ref, amount, created_at, channel)")
-      .eq("id", params.id)
-      .eq("member_id", userId!)
-      .single();
-    if (error) throw new Error("Loan not found");
-    return data;
-  })
+  .get(
+    "/:id",
+    async ({ params, userId }) => {
+      const { data, error } = await supabase
+        .from("loans")
+        .select("*, transactions(paystack_ref, amount, created_at, channel)")
+        .eq("id", params.id)
+        .eq("member_id", userId!)
+        .single();
+      if (error) throw new Error("Loan not found");
+      return data;
+    },
+    { params: uuidParam },
+  )
 
   // POST /loans/:id/repayment - Verify a Paystack payment server-side and apply
   // it to the loan. The client sends only the transaction reference; amount and
@@ -119,108 +124,53 @@ export const loanRoutes = new Elysia({ prefix: "/loans" })
   .post(
     "/:id/repayment",
     async ({ params, body, userId, set }) => {
-      const { data: loan, error: loanError } = await supabase
-        .from("loans")
-        .select("id, member_id, balance, status")
-        .eq("id", params.id)
-        .eq("member_id", userId!)
-        .single();
+      const result = await processLoanRepayment(params.id, userId!, body.reference);
 
-      if (loanError || !loan) {
-        throw new Error("Loan not found or does not belong to member");
-      }
-
-      let tx;
-      try {
-        tx = await paystack.verifyTransaction(body.reference);
-      } catch (err) {
-        set.status = 404;
-        return {
-          success: false,
-          reason: "reference_not_found",
-          message: err instanceof Error ? err.message : "Verification failed",
-        };
-      }
-
-      if (tx.status !== "success") {
-        set.status = 402;
-        return { success: false, reason: "payment_not_successful", status: tx.status };
-      }
-      if (tx.currency !== "NGN") {
-        set.status = 422;
-        return { success: false, reason: "unsupported_currency", currency: tx.currency };
-      }
-
-      // Record the transaction BEFORE touching the balance: paystack_ref is
-      // UNIQUE, so a replayed reference fails here and cannot double-credit.
-      const { error: txError } = await supabase.from("transactions").insert({
-        paystack_ref: tx.reference,
-        member_id: userId!,
-        amount: tx.amount,
-        type: "loan_repayment",
-        status: "success",
-        channel: tx.channel,
-        loan_id: params.id,
-        metadata: {
-          gateway_response: tx.gateway_response,
-          paid_at: tx.paid_at,
-          verified_at: new Date().toISOString(),
-        } as unknown as Database["public"]["Tables"]["transactions"]["Row"]["metadata"],
-      });
-
-      if (txError) {
-        if (txError.code === "23505") {
+      switch (result.result) {
+        case RepaymentResult.LoanNotFound:
+          set.status = 404;
+          return { success: false, reason: "loan_not_found" };
+        case RepaymentResult.ReferenceNotFound:
+          set.status = 404;
+          return {
+            success: false,
+            reason: "reference_not_found",
+            message: result.message,
+          };
+        case RepaymentResult.PaymentNotSuccessful:
+          set.status = 402;
+          return {
+            success: false,
+            reason: "payment_not_successful",
+            status: result.paystack_status,
+          };
+        case RepaymentResult.UnsupportedCurrency:
+          set.status = 422;
+          return {
+            success: false,
+            reason: "unsupported_currency",
+            currency: result.currency,
+          };
+        case RepaymentResult.AlreadyProcessed:
           return {
             success: true,
             already_processed: true,
-            loan_id: params.id,
-            remaining_balance: Number(loan.balance),
-            status: loan.status,
+            loan_id: result.loan_id,
+            remaining_balance: result.remaining_balance,
+            status: result.loan_status,
           };
-        }
-        throw new Error(`Failed to record transaction: ${txError.message}`);
+        case RepaymentResult.Success:
+          return {
+            success: true,
+            loan_id: result.loan_id,
+            amount_paid: result.amount_paid,
+            remaining_balance: result.remaining_balance,
+            status: result.loan_status,
+          };
       }
-
-      const amount = tx.amount / 100;
-      const newBalance = Math.max(0, Number(loan.balance) - amount);
-
-      const { error: updateError } = await supabase
-        .from("loans")
-        .update({
-          balance: newBalance,
-          status: newBalance === 0 ? "closed" : "repaying",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", params.id);
-
-      if (updateError) {
-        throw new Error(`Failed to update loan: ${updateError.message}`);
-      }
-
-      await NotificationService.getInstance().notify({
-        userIds: [userId!],
-        type: "loan",
-        title: "Loan Repayment Successful",
-        body: `₦${amount.toLocaleString()} has been processed successfully.`,
-        data: {
-          event: "loan_repayment",
-          loan_id: params.id,
-          reference: tx.reference,
-          amount: amount,
-        },
-        action: { label: "View Details", url: `/loans/${params.id}` },
-        notifyAdmins: true,
-      });
-
-      return {
-        success: true,
-        loan_id: params.id,
-        amount_paid: amount,
-        remaining_balance: newBalance,
-        status: newBalance === 0 ? "closed" : "repaying",
-      };
     },
     {
+      params: uuidParam,
       body: t.Object({
         reference: t.String({ minLength: 1 }),
       }),
@@ -300,6 +250,7 @@ export const loanRoutes = new Elysia({ prefix: "/loans" })
       return data;
     },
     {
+      params: uuidParam,
       body: t.Object({
         status: t.Union([
           t.Literal("approved"),
@@ -315,60 +266,75 @@ export const loanRoutes = new Elysia({ prefix: "/loans" })
     },
   )
 
-  .post("/:id/disburse", async ({ params, userId }) => {
-    const { data: loan, error: loanError } = await supabase
-      .from("loans")
-      .select("id, status, amount_approved")
-      .eq("id", params.id)
-      .single();
+  .post(
+    "/:id/disburse",
+    async ({ params, userId, set }) => {
+      const { data: loan, error: loanError } = await supabase
+        .from("loans")
+        .select("id, status, amount_approved")
+        .eq("id", params.id)
+        .single();
 
-    if (loanError || !loan) {
-      throw new Error("Loan not found");
-    }
+      if (loanError || !loan) {
+        set.status = 404;
+        throw new Error("Loan not found");
+      }
 
-    if (loan.status !== "approved") {
-      throw new Error(
-        `Loan must be in 'approved' status to disburse. Current status: ${loan.status}`,
-      );
-    }
+      if (loan.status !== "approved") {
+        set.status = 409;
+        throw new Error(
+          `Loan must be in 'approved' status to disburse. Current status: ${loan.status}`,
+        );
+      }
 
-    if (!loan.amount_approved || loan.amount_approved <= 0) {
-      throw new Error("Loan has no approved amount to disburse");
-    }
+      if (!loan.amount_approved || loan.amount_approved <= 0) {
+        set.status = 422;
+        throw new Error("Loan has no approved amount to disburse");
+      }
 
-    const result = await disburseLoan(params.id);
+      let result;
+      try {
+        result = await disburseLoan(params.id);
+      } catch (err) {
+        // Any remaining throw from disburseLoan is a precondition failure
+        // (e.g. missing bank details) not caught by the checks above.
+        set.status = 422;
+        throw err;
+      }
 
-    await writeAuditLog({
-      actor_id: userId!,
-      action: `loan_disbursement_${result.result}`,
-      entity: "loans",
-      entity_id: params.id,
-      metadata: {
-        paystack_transfer_ref: result.paystack_transfer_ref,
-        recipient_code: result.recipient_code,
-      },
-    });
+      await writeAuditLog({
+        actor_id: userId!,
+        action: `loan_disbursement_${result.result}`,
+        entity: "loans",
+        entity_id: params.id,
+        metadata: {
+          paystack_transfer_ref: result.paystack_transfer_ref,
+          recipient_code: result.recipient_code,
+        },
+      });
 
-    if (result.result === "success") {
-      return {
-        success: true,
-        status: "disbursed",
-        paystack_transfer_ref: result.paystack_transfer_ref,
-        disbursed_at: result.disbursed_at,
-        message: "Loan disbursed successfully",
-      };
-    } else if (result.result === "pending_otp") {
-      return {
-        success: true,
-        status: "pending_otp",
-        paystack_transfer_ref: result.paystack_transfer_ref,
-        message: result.message || "Transfer initiated. Awaiting OTP confirmation.",
-      };
-    } else {
-      return {
-        success: false,
-        status: "disbursement_failed",
-        message: result.message || "Disbursement failed",
-      };
-    }
-  });
+      if (result.result === "success") {
+        return {
+          success: true,
+          status: "disbursed",
+          paystack_transfer_ref: result.paystack_transfer_ref,
+          disbursed_at: result.disbursed_at,
+          message: "Loan disbursed successfully",
+        };
+      } else if (result.result === "pending_otp") {
+        return {
+          success: true,
+          status: "pending_otp",
+          paystack_transfer_ref: result.paystack_transfer_ref,
+          message: result.message || "Transfer initiated. Awaiting OTP confirmation.",
+        };
+      } else {
+        return {
+          success: false,
+          status: "disbursement_failed",
+          message: result.message || "Disbursement failed",
+        };
+      }
+    },
+    { params: uuidParam },
+  );

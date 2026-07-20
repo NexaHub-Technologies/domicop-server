@@ -215,8 +215,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         .catch((err) => console.error("Failed to notify admins of registration:", err));
 
       return {
-        message:
-          "Registration successful. Your application is pending admin approval.",
+        message: "Registration successful. Your application is pending admin approval.",
         user_id: data.user!.id,
         email: data.user!.email,
       };

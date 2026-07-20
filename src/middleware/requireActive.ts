@@ -35,9 +35,7 @@ export const requireActive = new Elysia({ name: "requireActive" }).derive(
 
     if (profile.status === "suspended") {
       set.status = 403;
-      throw new Error(
-        "Account suspended. Please contact support for assistance.",
-      );
+      throw new Error("Account suspended. Please contact support for assistance.");
     }
 
     // Only active users can proceed

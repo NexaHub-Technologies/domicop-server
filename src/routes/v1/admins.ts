@@ -3,6 +3,7 @@ import { authenticate } from "@/middleware/authenticate";
 import { requireAdmin } from "@/middleware/requireAdmin";
 import { supabase } from "@/lib/supabase";
 import { writeAuditLog } from "@/utils/audit";
+import { uuidParam } from "@/utils/validators";
 
 /**
  * Admin management routes.
@@ -111,5 +112,5 @@ export const adminRoutes = new Elysia({ prefix: "/admins" })
 
       return new Response(null, { status: 204 });
     },
-    { params: t.Object({ id: t.String() }) },
+    { params: uuidParam },
   );

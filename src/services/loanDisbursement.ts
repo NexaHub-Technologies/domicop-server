@@ -79,10 +79,7 @@ export async function disburseLoan(loanId: string): Promise<DisbursementResponse
   }
 
   try {
-    const verification = await paystack.resolveAccount(
-      member.bank_account,
-      member.bank_code,
-    );
+    const verification = await paystack.resolveAccount(member.bank_account, member.bank_code);
 
     if (verification.account_name) {
       const nameMatch = verification.account_name
@@ -170,8 +167,7 @@ export async function disburseLoan(loanId: string): Promise<DisbursementResponse
 
     return {
       result: DisbursementResult.Failed,
-      message:
-        error instanceof Error ? error.message : "Unknown error during disbursement",
+      message: error instanceof Error ? error.message : "Unknown error during disbursement",
     };
   }
 }

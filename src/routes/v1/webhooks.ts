@@ -6,54 +6,53 @@ import { NotificationService } from "@/services/notificationService";
 import { writeAuditLog } from "@/utils/audit";
 import { allocateContribution, MIN_CONTRIBUTION } from "@/services/contributionAllocation";
 
-export const webhookRoutes = new Elysia({ prefix: "/webhooks" })
-  .post(
-    "/paystack",
-    async ({ body, request, set }) => {
-      // Custom parse keeps the raw body string: the HMAC is computed over the
-      // exact bytes Paystack sent, so we must not JSON-parse before verifying.
-      const rawBody = body as string;
-      const signature = request.headers.get("x-paystack-signature");
+export const webhookRoutes = new Elysia({ prefix: "/webhooks" }).post(
+  "/paystack",
+  async ({ body, request, set }) => {
+    // Custom parse keeps the raw body string: the HMAC is computed over the
+    // exact bytes Paystack sent, so we must not JSON-parse before verifying.
+    const rawBody = body as string;
+    const signature = request.headers.get("x-paystack-signature");
 
-      if (!signature || !verifyPaystackSignature(rawBody, signature)) {
-        set.status = 401;
-        return { error: "Invalid webhook signature" };
-      }
+    if (!signature || !verifyPaystackSignature(rawBody, signature)) {
+      set.status = 401;
+      return { error: "Invalid webhook signature" };
+    }
 
-      let event: { event: string; data: unknown };
-      try {
-        event = JSON.parse(rawBody);
-      } catch {
-        set.status = 400;
-        return { error: "Invalid JSON payload" };
-      }
-      console.log("[Paystack Webhook] Event received:", event.event);
+    let event: { event: string; data: unknown };
+    try {
+      event = JSON.parse(rawBody);
+    } catch {
+      set.status = 400;
+      return { error: "Invalid JSON payload" };
+    }
+    console.log("[Paystack Webhook] Event received:", event.event);
 
-      switch (event.event) {
-        case "charge.success":
-          await handleChargeSuccess(event.data as PaystackChargeEventData);
-          break;
-        case "transfer.success":
-          await handleTransferSuccess(event.data as PaystackTransferEvent["data"]);
-          break;
-        case "transfer.failed":
-          await handleTransferFailed(event.data as PaystackTransferEvent["data"]);
-          break;
-        case "transfer.reversed":
-          await handleTransferReversed(event.data as PaystackTransferEvent["data"]);
-          break;
-        default:
-          console.log(`[Paystack Webhook] Unhandled event type: ${event.event}`);
-      }
+    switch (event.event) {
+      case "charge.success":
+        await handleChargeSuccess(event.data as PaystackChargeEventData);
+        break;
+      case "transfer.success":
+        await handleTransferSuccess(event.data as PaystackTransferEvent["data"]);
+        break;
+      case "transfer.failed":
+        await handleTransferFailed(event.data as PaystackTransferEvent["data"]);
+        break;
+      case "transfer.reversed":
+        await handleTransferReversed(event.data as PaystackTransferEvent["data"]);
+        break;
+      default:
+        console.log(`[Paystack Webhook] Unhandled event type: ${event.event}`);
+    }
 
-      return { received: true };
-    },
-    {
-      // Keep the raw body for signature verification; event shapes differ per
-      // event type (charge.* vs transfer.*), handlers narrow the payload.
-      parse: ({ request }) => request.text(),
-    },
-  );
+    return { received: true };
+  },
+  {
+    // Keep the raw body for signature verification; event shapes differ per
+    // event type (charge.* vs transfer.*), handlers narrow the payload.
+    parse: ({ request }) => request.text(),
+  },
+);
 
 interface PaystackChargeEventData {
   reference: string;
@@ -92,7 +91,9 @@ async function handleChargeSuccess(data: PaystackChargeEventData): Promise<void>
     .maybeSingle();
 
   if (!contribution) {
-    console.log(`[Paystack Webhook] charge.success ${reference} matches no contribution, skipping`);
+    console.log(
+      `[Paystack Webhook] charge.success ${reference} matches no contribution, skipping`,
+    );
     return;
   }
   if (contribution.payment_status === "success") return;
@@ -154,7 +155,12 @@ async function handleChargeSuccess(data: PaystackChargeEventData): Promise<void>
     type: "contribution",
     title: "Contribution Received",
     body: `Your contribution of ₦${amountNaira.toLocaleString()} for ${contribution.month} has been confirmed.`,
-    data: { event: "contribution_recorded", contribution_id: contribution.id, amount: amountNaira, month: contribution.month },
+    data: {
+      event: "contribution_recorded",
+      contribution_id: contribution.id,
+      amount: amountNaira,
+      month: contribution.month,
+    },
     action: { label: "View Contributions", url: "/contributions" },
     notifyAdmins: true,
   });
@@ -167,7 +173,9 @@ async function handleChargeSuccess(data: PaystackChargeEventData): Promise<void>
     metadata: { paystack_ref: reference, amount: amountNaira, channel: data.channel },
   });
 
-  console.log(`[Paystack Webhook] Contribution ${contribution.id} confirmed via charge.success`);
+  console.log(
+    `[Paystack Webhook] Contribution ${contribution.id} confirmed via charge.success`,
+  );
 }
 
 async function handleTransferSuccess(data: PaystackTransferEvent["data"]): Promise<void> {

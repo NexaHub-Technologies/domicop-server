@@ -3,7 +3,7 @@ import { authenticate } from "@/middleware/authenticate";
 import { requireAdmin } from "@/middleware/requireAdmin";
 import { supabase } from "@/lib/supabase";
 import { writeAuditLog } from "@/utils/audit";
-import { paginationQS, paginate } from "@/utils/validators";
+import { paginationQS, paginate, uuidParam } from "@/utils/validators";
 import { NotificationService } from "@/services/notificationService";
 
 export const memberRoutes = new Elysia({ prefix: "/members" })
@@ -119,15 +119,19 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
     { query: paginationQS },
   )
 
-  .get("/:id", async ({ params }) => {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", params.id)
-      .single();
-    if (error) throw new Error("Member not found");
-    return data;
-  })
+  .get(
+    "/:id",
+    async ({ params }) => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", params.id)
+        .single();
+      if (error) throw new Error("Member not found");
+      return data;
+    },
+    { params: uuidParam },
+  )
 
   .patch(
     "/:id",
@@ -148,15 +152,12 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
       return data;
     },
     {
+      params: uuidParam,
       // Note: admin status is managed via /admins (admin_profiles), not here —
       // profiles.role no longer grants admin authorization.
       body: t.Partial(
         t.Object({
-          status: t.Union([
-            t.Literal("pending"),
-            t.Literal("active"),
-            t.Literal("suspended"),
-          ]),
+          status: t.Union([t.Literal("pending"), t.Literal("active"), t.Literal("suspended")]),
           member_no: t.String(),
         }),
       ),
@@ -173,40 +174,44 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
     return data;
   })
 
-  .post("/:id/approve", async ({ params, userId }) => {
-    const { count } = await supabase
-      .from("profiles")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "active");
-    const memberNo = `DOMICOOP-${String((count ?? 0) + 1).padStart(4, "0")}`;
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({
-        status: "active",
-        member_no: memberNo,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", params.id)
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    await writeAuditLog({
-      actor_id: userId!,
-      action: "approve_member",
-      entity: "profiles",
-      entity_id: params.id,
-    });
+  .post(
+    "/:id/approve",
+    async ({ params, userId }) => {
+      const { count } = await supabase
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "active");
+      const memberNo = `DOMICOOP-${String((count ?? 0) + 1).padStart(4, "0")}`;
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({
+          status: "active",
+          member_no: memberNo,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", params.id)
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      await writeAuditLog({
+        actor_id: userId!,
+        action: "approve_member",
+        entity: "profiles",
+        entity_id: params.id,
+      });
 
-    await NotificationService.getInstance().notify({
-      userIds: [params.id],
-      type: "security",
-      title: "Membership Approved",
-      body: `Welcome to DOMICOOP! Your membership has been approved. Your member number is ${memberNo}.`,
-      data: { event: "member_approved", member_no: memberNo },
-    });
+      await NotificationService.getInstance().notify({
+        userIds: [params.id],
+        type: "security",
+        title: "Membership Approved",
+        body: `Welcome to DOMICOOP! Your membership has been approved. Your member number is ${memberNo}.`,
+        data: { event: "member_approved", member_no: memberNo },
+      });
 
-    return data;
-  })
+      return data;
+    },
+    { params: uuidParam },
+  )
 
   // Admin financial statement for a member
   .get(
@@ -270,5 +275,8 @@ export const memberRoutes = new Elysia({ prefix: "/members" })
         },
       };
     },
-    { query: t.Partial(t.Object({ year: t.Numeric() })) },
+    {
+      params: uuidParam,
+      query: t.Partial(t.Object({ year: t.Numeric() })),
+    },
   );

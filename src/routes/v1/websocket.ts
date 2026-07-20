@@ -13,17 +13,14 @@
  * @requires supabaseAuth
  */
 
-import { Elysia, t } from "elysia";
-import { supabaseAuth, supabase } from "@/lib/supabase";
+import Elysia, { t } from "elysia";
+import { resolveUserFromToken } from "@/lib/auth";
 import type { User } from "@supabase/supabase-js";
 
 /**
  * WebSocket message types
  */
-type WebSocketMessage =
-  | { type: "ping" }
-  | { type: "pong" }
-  | { type: "ack"; id: string };
+type WebSocketMessage = { type: "ping" } | { type: "pong" } | { type: "ack"; id: string };
 
 /**
  * WebSocket route definitions
@@ -53,21 +50,14 @@ export const websocketRoutes = new Elysia().ws("/ws/notifications", {
       return "Missing token (use ?token= or Authorization header)";
     }
 
-    const { data, error } = await supabaseAuth.auth.getUser(token);
-
-    if (error || !data.user) {
+    const resolved = await resolveUserFromToken(token);
+    if (!resolved) {
       set.status = 401;
       return "Invalid or expired token";
     }
 
-    const { data: adminRow } = await supabase
-      .from("admin_profiles")
-      .select("id")
-      .eq("id", data.user.id)
-      .maybeSingle();
-
-    (ctx as Record<string, unknown>).user = data.user;
-    (ctx as Record<string, unknown>).isAdmin = !!adminRow;
+    (ctx as Record<string, unknown>).user = resolved.user;
+    (ctx as Record<string, unknown>).isAdmin = resolved.isAdmin;
     return undefined;
   },
 
@@ -99,10 +89,8 @@ export const websocketRoutes = new Elysia().ws("/ws/notifications", {
         type: "connected",
         timestamp: new Date().toISOString(),
         channels:
-          role === "admin"
-            ? ["admin-notifications", `user-${user.id}`]
-            : [`user-${user.id}`],
-      })
+          role === "admin" ? ["admin-notifications", `user-${user.id}`] : [`user-${user.id}`],
+      }),
     );
   },
 
@@ -127,7 +115,9 @@ export const websocketRoutes = new Elysia().ws("/ws/notifications", {
           break;
 
         default:
-          console.log(`[WebSocket] Received message type: ${(message as { type: string }).type}`);
+          console.log(
+            `[WebSocket] Received message type: ${(message as { type: string }).type}`,
+          );
       }
     } catch (error) {
       console.error("[WebSocket] Error handling message:", error);
@@ -135,7 +125,7 @@ export const websocketRoutes = new Elysia().ws("/ws/notifications", {
         JSON.stringify({
           type: "error",
           message: "Invalid message format",
-        })
+        }),
       );
     }
   },

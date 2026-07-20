@@ -45,12 +45,7 @@ type BunServer = NonNullable<Elysia["server"]>;
  * constraint and the REST contract enum. Event subtypes (e.g.
  * "loan_disbursed") belong in `data.event`.
  */
-export type NotificationType =
-  | "loan"
-  | "contribution"
-  | "dividend"
-  | "security"
-  | "meeting";
+export type NotificationType = "loan" | "contribution" | "dividend" | "security" | "meeting";
 
 export const NOTIFICATION_TYPES: NotificationType[] = [
   "loan",
@@ -363,8 +358,7 @@ export class NotificationService {
     const disabled = new Set(
       (data as unknown as Record<string, unknown>[])
         .filter(
-          (row) =>
-            row.push_enabled === false || (column ? row[column] === false : false),
+          (row) => row.push_enabled === false || (column ? row[column] === false : false),
         )
         .map((row) => row.member_id as string),
     );
@@ -480,8 +474,7 @@ export class NotificationService {
   ): Promise<void> {
     const deadTokens = tickets
       .map((ticket, i) =>
-        ticket.status === "error" &&
-        ticket.details?.error === "DeviceNotRegistered"
+        ticket.status === "error" && ticket.details?.error === "DeviceNotRegistered"
           ? devices[i]?.token
           : null,
       )
@@ -499,7 +492,11 @@ export class NotificationService {
   /**
    * Broadcast notification to all connected admin dashboard clients via WebSocket
    */
-  broadcastToAdmins(payload: { title: string; body: string; data?: Record<string, unknown> }): void {
+  broadcastToAdmins(payload: {
+    title: string;
+    body: string;
+    data?: Record<string, unknown>;
+  }): void {
     this.publish("admin-notifications", {
       type: "notification",
       timestamp: new Date().toISOString(),
@@ -510,7 +507,10 @@ export class NotificationService {
   /**
    * Send notification to specific user via WebSocket (for real-time updates)
    */
-  sendToUser(userId: string, payload: { title: string; body: string; data?: Record<string, unknown> }): void {
+  sendToUser(
+    userId: string,
+    payload: { title: string; body: string; data?: Record<string, unknown> },
+  ): void {
     this.publish(`user-${userId}`, {
       type: "notification",
       timestamp: new Date().toISOString(),
@@ -525,7 +525,9 @@ export class NotificationService {
   async getPreferences(userId: string): Promise<NotificationPreferences> {
     const { data } = await supabase
       .from("notification_preferences")
-      .select("push_enabled, loan_enabled, contribution_enabled, dividend_enabled, meeting_enabled")
+      .select(
+        "push_enabled, loan_enabled, contribution_enabled, dividend_enabled, meeting_enabled",
+      )
       .eq("member_id", userId)
       .maybeSingle();
 

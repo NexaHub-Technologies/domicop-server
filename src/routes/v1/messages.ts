@@ -2,6 +2,7 @@ import Elysia, { t } from "elysia";
 import { authenticate } from "@/middleware/authenticate";
 import { requireAdmin } from "@/middleware/requireAdmin";
 import { supabase } from "@/lib/supabase";
+import { uuidParam } from "@/utils/validators";
 import { NotificationService } from "@/services/notificationService";
 
 const notificationService = NotificationService.getInstance();
@@ -111,7 +112,10 @@ export const messageRoutes = new Elysia({ prefix: "/messages" })
       }
       return data;
     },
-    { body: t.Object({ body: t.String({ minLength: 1 }) }) },
+    {
+      params: uuidParam,
+      body: t.Object({ body: t.String({ minLength: 1 }) }),
+    },
   )
 
   .use(requireAdmin)
@@ -146,6 +150,7 @@ export const messageRoutes = new Elysia({ prefix: "/messages" })
       return data;
     },
     {
+      params: uuidParam,
       body: t.Object({
         status: t.Union([
           t.Literal("open"),

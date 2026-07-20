@@ -3,6 +3,7 @@ import { authenticate } from "@/middleware/authenticate";
 import { requireAdmin } from "@/middleware/requireAdmin";
 import { supabase } from "@/lib/supabase";
 import { writeAuditLog } from "@/utils/audit";
+import { uuidParam } from "@/utils/validators";
 import { NotificationService } from "@/services/notificationService";
 
 const notificationService = NotificationService.getInstance();
@@ -124,6 +125,7 @@ export const announcementRoutes = new Elysia({ prefix: "/announcements" })
       return data;
     },
     {
+      params: uuidParam,
       body: t.Partial(
         t.Object({
           title: t.String({ minLength: 3 }),
@@ -135,14 +137,18 @@ export const announcementRoutes = new Elysia({ prefix: "/announcements" })
   )
 
   // DELETE /announcements/:id
-  .delete("/:id", async ({ params, userId }) => {
-    const { error } = await supabase.from("announcements").delete().eq("id", params.id);
-    if (error) throw new Error(error.message);
-    await writeAuditLog({
-      actor_id: userId!,
-      action: "delete_announcement",
-      entity: "announcements",
-      entity_id: params.id,
-    });
-    return { success: true };
-  });
+  .delete(
+    "/:id",
+    async ({ params, userId }) => {
+      const { error } = await supabase.from("announcements").delete().eq("id", params.id);
+      if (error) throw new Error(error.message);
+      await writeAuditLog({
+        actor_id: userId!,
+        action: "delete_announcement",
+        entity: "announcements",
+        entity_id: params.id,
+      });
+      return { success: true };
+    },
+    { params: uuidParam },
+  );

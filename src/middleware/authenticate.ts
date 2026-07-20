@@ -1,5 +1,5 @@
 import Elysia from "elysia";
-import { supabaseAuth, supabase } from "../lib/supabase";
+import { resolveUserFromToken } from "@/lib/auth";
 
 const PUBLIC_PATHS = [
   "/v1/banks",
@@ -35,30 +35,13 @@ export const authenticate = new Elysia({ name: "authenticate" }).derive(
       throw new Error("Missing or malformed Authorization header");
     }
     const token = authHeader.replace("Bearer ", "").trim();
-    const {
-      data: { user },
-      error,
-    } = await supabaseAuth.auth.getUser(token);
-    if (error || !user) {
+
+    const resolved = await resolveUserFromToken(token);
+    if (!resolved) {
       set.status = 401;
       throw new Error("Invalid or expired token");
     }
 
-    // Admin authorization lives in admin_profiles (see 20260703_admin_profiles_table).
-    // A row there is what makes an account an admin; members have none.
-    const { data: adminRow } = await supabase
-      .from("admin_profiles")
-      .select("id")
-      .eq("id", user.id)
-      .maybeSingle();
-    const isAdmin = !!adminRow;
-
-    return {
-      user,
-      role: isAdmin ? "admin" : "member",
-      isAdmin,
-      userId: user.id,
-      token,
-    };
+    return { ...resolved, token };
   },
 );

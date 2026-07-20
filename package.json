@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "bun --env-file=.env --watch src/index.ts",
     "start": "bun --env-file=.env src/index.ts",
-    "lint": "bunx tsc --noEmit"
+    "lint": "bunx tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "cleanup:notifications": "bun --env-file=.env src/jobs/cleanupNotifications.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "prettier": "^3.9.5"
   },
   "peerDependencies": {
     "typescript": "^5"

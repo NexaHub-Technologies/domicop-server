@@ -2,8 +2,8 @@ import Elysia, { t } from "elysia";
 import { authenticate } from "@/middleware/authenticate";
 import { requireAdmin } from "@/middleware/requireAdmin";
 import { supabase } from "@/lib/supabase";
-import { paystack } from "@/lib/paystack";
 import { writeAuditLog } from "@/utils/audit";
+import { distributeDividends } from "@/services/dividendDistribution";
 
 export const dividendRoutes = new Elysia({ prefix: "/dividends" })
   .use(authenticate)
@@ -88,62 +88,7 @@ export const dividendRoutes = new Elysia({ prefix: "/dividends" })
   .post(
     "/distribute",
     async ({ body, userId }) => {
-      const results = [];
-
-      for (const dividend of body.dividends) {
-        // Get member bank details
-        const { data: member } = await supabase
-          .from("profiles")
-          .select("bank_name, bank_account, bank_code")
-          .eq("id", dividend.member_id)
-          .single();
-
-        if (!member?.bank_account || !member?.bank_code) {
-          results.push({
-            member_id: dividend.member_id,
-            status: "failed",
-            error: "Missing bank details",
-          });
-          continue;
-        }
-
-        try {
-          // Create transfer recipient
-          const recipient = await paystack.createTransferRecipient({
-            name: member.bank_name ?? "Member",
-            account_number: member.bank_account,
-            bank_code: member.bank_code,
-          });
-
-          // Initiate transfer
-          const transfer = await paystack.initiateTransfer({
-            amount: dividend.amount,
-            recipient: recipient.recipient_code,
-            reason: `Dividend for ${body.year}`,
-          });
-
-          // Record dividend
-          await supabase.from("dividends").insert({
-            member_id: dividend.member_id,
-            amount: dividend.amount,
-            year: body.year,
-            paystack_transfer_ref: transfer.transfer_code,
-            status: "processing",
-          });
-
-          results.push({
-            member_id: dividend.member_id,
-            status: "processing",
-            transfer_code: transfer.transfer_code,
-          });
-        } catch (err) {
-          results.push({
-            member_id: dividend.member_id,
-            status: "failed",
-            error: (err as Error).message,
-          });
-        }
-      }
+      const results = await distributeDividends(body.dividends, body.year);
 
       await writeAuditLog({
         actor_id: userId!,
